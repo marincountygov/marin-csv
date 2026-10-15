@@ -98,6 +98,10 @@ class FakeElement {
     return null;
   }
 
+  getBoundingClientRect() {
+    return { left: 100, top: 50, width: 120, height: 30, right: 220, bottom: 80 };
+  }
+
   focus() {
     this.focused = true;
   }
@@ -151,6 +155,7 @@ class FakeTabulator {
     this.destroyed = false;
     this.height = options.height;
     this.redrawCalls = 0;
+    this.deselectRangeCalls = 0;
     this.rows = options.data.map((record) => ({
       getData: () => record,
       getCell: () => null,
@@ -194,6 +199,10 @@ class FakeTabulator {
   getRows() {
     return this.rows;
   }
+
+  deselectRange() {
+    this.deselectRangeCalls += 1;
+  }
 }
 
 function fakeCell(documentIndex = 1, columnIndex = 0, value = "000999") {
@@ -208,6 +217,9 @@ function fakeCell(documentIndex = 1, columnIndex = 0, value = "000999") {
     getField: () => `c${columnIndex}`,
     getValue: () => value,
     getElement: () => element,
+    edit() {
+      cell.edited = (cell.edited || 0) + 1;
+    },
   };
   return { cell, rowData, element };
 }
@@ -471,7 +483,109 @@ test("filtering waits for tableBuilt, ignores adapter metadata, and clearing res
   assert.equal(grid.table.clearFilterCalls, clearCalls + 1);
 });
 
-test("focus restoration waits for tableBuilt and destroy removes both host listeners", () => {
+test("exact value filtering combines with the global text filter without changing document data", () => {
+  const container = new FakeHTMLElement();
+  const documentModel = open("id,status,notes\n001,Active,Alpha\n002,active,Alpha\n003,Active,Beta\n004,,Alpha\n");
+  const grid = new Adapter.TabulatorGrid(container, {}, FakeTabulator);
+  grid.setDocument(documentModel);
+  grid.table.fire("tableBuilt");
+
+  assert.equal(grid.setValueFilter(1, "Active"), true);
+  assert.deepEqual(grid.getValueFilter(), { columnIndex: 1, value: "Active" });
+  assert.equal(grid.table.filter({ c0: "001", c1: "Active", c2: "Alpha" }), true);
+  assert.equal(grid.table.filter({ c0: "002", c1: "active", c2: "Alpha" }), false,
+    "Exact value matching must remain case-sensitive");
+
+  grid.setFilter("alpha");
+  assert.equal(grid.table.filter({ c0: "001", c1: "Active", c2: "Alpha" }), true);
+  assert.equal(grid.table.filter({ c0: "003", c1: "Active", c2: "Beta" }), false,
+    "Global text and exact-value filters must combine with AND semantics");
+
+  grid.setFilter("");
+  grid.setValueFilter(1, "");
+  assert.equal(grid.table.filter({ c0: "004", c1: "", c2: "Alpha" }), true,
+    "Blank values must be filterable");
+  assert.equal(grid.clearValueFilter(), true);
+  assert.equal(grid.getValueFilter(), null);
+  assert.deepEqual(documentModel.exportBytes(), Engine.encodeUtf8("id,status,notes\n001,Active,Alpha\n002,active,Alpha\n003,Active,Beta\n004,,Alpha\n"));
+});
+
+test("exact value filter coordinates follow column insertion and deletion", () => {
+  const grid = new Adapter.TabulatorGrid(new FakeHTMLElement(), {}, FakeTabulator);
+  grid.setDocument(open("id,status\n001,Active\n"));
+  grid.table.fire("tableBuilt");
+  grid.setValueFilter(1, "Active");
+  assert.deepEqual(grid.adjustValueFilterForColumnInsert(1), { columnIndex: 2, value: "Active" });
+  assert.deepEqual(grid.adjustValueFilterForColumnDelete(0), { columnIndex: 1, value: "Active" });
+  assert.equal(grid.adjustValueFilterForColumnDelete(1), null);
+});
+
+test("cell context events expose stable physical targets and programmatic editing", () => {
+  const container = new FakeHTMLElement();
+  const requests = [];
+  const grid = new Adapter.TabulatorGrid(container, {
+    onContextMenu: (target) => {
+      requests.push(target);
+      return true;
+    },
+  }, FakeTabulator);
+  const documentModel = open("id,status\n001,Active\n002,Inactive\n");
+  grid.setDocument(documentModel);
+  grid.table.fire("tableBuilt");
+
+  const target = fakeCell(2, 1, "Inactive");
+  const row = {
+    getData: () => ({ __documentIndex: 2 }),
+    getCell: (field) => field === "c1" ? target.cell : null,
+  };
+  grid.table.rows = [row];
+  let prevented = 0;
+  let stopped = 0;
+  grid.table.fire("cellContext", {
+    clientX: 420,
+    clientY: 310,
+    preventDefault: () => { prevented += 1; },
+    stopPropagation: () => { stopped += 1; },
+  }, target.cell);
+
+  assert.equal(prevented, 1);
+  assert.equal(stopped, 1);
+  assert.equal(grid.table.deselectRangeCalls, 1);
+  assert.deepEqual(requests[0], {
+    rowId: documentModel.rows[2].id,
+    rowIndex: 2,
+    columnIndex: 1,
+    value: "Inactive",
+    columnName: "status",
+    source: "pointer",
+    clientX: 420,
+    clientY: 310,
+  });
+
+  grid.table.fire("cellTapHold", {
+    preventDefault: () => {},
+    stopPropagation: () => {},
+  }, target.cell);
+  assert.equal(requests[1].source, "touch");
+
+  target.element.dataset.documentRowIndex = "2";
+  target.element.dataset.columnIndex = "1";
+  let keyboardPrevented = 0;
+  container.dispatch("keydown", {
+    key: "ContextMenu",
+    target: { closest: () => target.element },
+    preventDefault: () => { keyboardPrevented += 1; },
+    stopPropagation: () => {},
+  });
+  assert.equal(keyboardPrevented, 1);
+  assert.equal(requests[2].source, "keyboard");
+  assert.equal(requests[2].clientX, 132);
+  assert.equal(requests[2].clientY, 65);
+  assert.equal(grid.editCell(2, 1), true);
+  assert.equal(target.cell.edited, 1);
+});
+
+test("focus restoration waits for tableBuilt and destroy removes all host listeners", () => {
   const container = new FakeHTMLElement();
   const grid = new Adapter.TabulatorGrid(container, {}, FakeTabulator);
   grid.setDocument(open("id,value\n001,old\n"));
@@ -495,6 +609,8 @@ test("focus restoration waits for tableBuilt and destroy removes both host liste
   assert.equal(table.destroyed, true);
   assert.equal(container.listeners.has("paste"), false);
   assert.equal(container.listeners.has("focusin"), false);
+  assert.equal(container.listeners.has("keydown"), false);
+  assert.equal(container.listeners.has("scroll"), false);
 });
 
 test("paged mode renders a bounded physical slice and keeps sort/filter disabled", async () => {

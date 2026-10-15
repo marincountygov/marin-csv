@@ -1,26 +1,32 @@
 # Marin CSV
 
-Marin CSV is a standalone MarinOS viewer and editor for CSV and TSV files. It
-runs locally in the browser and treats every field as text, avoiding silent
-data conversion that spreadsheet software can introduce into delimited files.
+Marin CSV is a standalone MarinOS viewer and editor for comma-, tab-,
+semicolon-, and pipe-delimited text files. It runs locally in the browser and
+treats every field as text, avoiding silent data conversion that spreadsheet
+software can introduce into delimited files.
 
-CSV-4 adds browser-local workspace recovery. Committed edits are journaled in
-IndexedDB and compacted into versioned snapshots so current work can survive a
-refresh and remain available after a browser restart. Recovery is distinct from
-**Download CSV**: IndexedDB preserves a working copy inside the browser; a
-download creates the user-controlled file.
+CSV-6 adds a custom field context menu while retaining CSV-5 common delimiter
+support and CSV-4 browser-local workspace recovery. Right-click, long-press,
+or press Shift+F10 on a data field to edit or clear it, apply an exact
+column-value filter, or delete its physical row or column. All mutations still
+pass through the preservation engine, undo/redo, and IndexedDB recovery paths.
+Recovery remains distinct from **Download file**: IndexedDB preserves a working
+copy inside the browser; a download creates the user-controlled file.
 
 The application remains an Alpha build.
 
 ## Product commitments
 
-- Open CSV and TSV files locally; file contents are not uploaded.
+- Open comma-, tab-, semicolon-, and pipe-delimited files locally; file
+  contents are not uploaded.
 - Preserve leading zeros, long digit strings, date-like text,
   scientific-notation-like text, Boolean/null-like text, and formula-like text.
 - Download an untouched file as the exact original bytes.
 - After edits, preserve delimiter, optional UTF-8 BOM, line-ending convention,
   final-newline choice, and unchanged row representations wherever possible.
 - Keep sorting and filtering view-only.
+- Keep context-menu targeting tied to physical document rows and columns even
+  when the visible grid is sorted or filtered.
 - Always download a new file; never overwrite the opened file.
 - Protect browser stability before fully materializing unusually large, dense,
   or wide files.
@@ -28,23 +34,32 @@ The application remains an Alpha build.
   represent them as downloaded, encrypted, archival, or permanent storage.
 
 The accepted decisions are in [`docs/decisions.md`](docs/decisions.md). Exact
-CSV behavior is in
+delimited-file behavior is in
 [`docs/data-integrity-contract.md`](docs/data-integrity-contract.md). The
-implemented recovery specification is in
+delimiter specification is in
+[`docs/csv-5-implementation-spec.md`](docs/csv-5-implementation-spec.md).
+The CSV-6 interaction specification is in
+[`docs/csv-6-implementation-spec.md`](docs/csv-6-implementation-spec.md), and
+the recovery specification remains in
 [`docs/csv-4-implementation-spec.md`](docs/csv-4-implementation-spec.md).
 
-## CSV-4 capabilities
+## CSV-6 capabilities
 
 The current build includes:
 
 - a full-width, viewport-aware spreadsheet workspace with normal and in-page
   expanded modes;
-- strict UTF-8 CSV/TSV preservation, exact untouched downloads, and
-  convention-preserving edited downloads;
+- strict UTF-8 preservation for four supported delimiters, exact untouched
+  downloads, and convention-preserving edited downloads;
 - independent Papa Parse validation and a text-only Tabulator grid;
 - standard, paged, and bounded read-only preview modes;
 - direct editing, block paste, row/column operations, undo/redo, find/replace,
   first-row header mode, view-only sorting/filtering, and new-file downloads;
+- a custom field context menu with mouse, keyboard, and touch access;
+- Edit field, Clear field, exact-value filter, Delete row, and Delete column
+  commands that use stable physical document coordinates;
+- a visible exact-value filter indicator that combines with the existing
+  global text filter using AND semantics;
 - automatic local recovery for every opened document;
 - immediate transactional edit journaling plus approximately 500-millisecond
   snapshot compaction;
@@ -66,6 +81,11 @@ The current build includes:
 
 See:
 
+- [`docs/csv-6-implementation-spec.md`](docs/csv-6-implementation-spec.md)
+- [`docs/csv-6-findings.md`](docs/csv-6-findings.md)
+- [`docs/csv-6-test-report.md`](docs/csv-6-test-report.md)
+- [`docs/csv-6-manual-review.md`](docs/csv-6-manual-review.md)
+- [`docs/csv-5-implementation-spec.md`](docs/csv-5-implementation-spec.md)
 - [`docs/csv-4-architecture.md`](docs/csv-4-architecture.md)
 - [`docs/recovery-schema.md`](docs/recovery-schema.md)
 - [`docs/recovery-formats.md`](docs/recovery-formats.md)
@@ -205,7 +225,7 @@ Tabulator adapter and workspace
 Pre-download Papa Parse check
       |
       v
-New downloaded CSV/TSV file
+New downloaded delimited text file
 ```
 
 The grid never owns export state. IndexedDB never interprets CSV semantics.
@@ -242,8 +262,8 @@ including the Marin UI 1.25.0 baseline. Do not edit `vendor/marinos/` directly.
 
 CSV contents remain on the application origin. The app does not upload them or
 place them in URLs, analytics, logs, `localStorage`, or `sessionStorage`.
-CSV-4 intentionally stores recovery copies in IndexedDB until the user deletes
-them or browser data is cleared. Browser-managed storage is not user-key
+Marin CSV intentionally stores recovery copies in IndexedDB until the user
+deletes them or browser data is cleared. Browser-managed storage is not user-key
 encrypted and is not an archival backup.
 
 `security.json` is the source of truth for published controls. See
@@ -255,5 +275,5 @@ encrypted and is not an archival backup.
 - **Owner:** County of Marin
 - **Audience:** County staff
 - **Repository:** `marincountygov/marin-csv`
-- **Status:** Alpha / CSV-4 local workspace recovery
+- **Status:** Alpha / CSV-6 cell context menu
 - **Deployment target:** GitHub Pages

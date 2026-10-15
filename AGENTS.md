@@ -2,10 +2,11 @@
 
 ## Product contract
 
-Marin CSV is a local-browser, text-preserving CSV/TSV viewer and editor. Read
-`docs/decisions.md`, `docs/data-integrity-contract.md`, and
-`docs/large-file-policy.md`, `docs/csv-4-implementation-spec.md`, and
-`docs/recovery-formats.md` before changing behavior. Do not introduce
+Marin CSV is a local-browser, text-preserving delimited-text viewer and editor.
+Read `docs/decisions.md`, `docs/data-integrity-contract.md`,
+`docs/large-file-policy.md`, `docs/csv-4-implementation-spec.md`,
+`docs/csv-5-implementation-spec.md`, and `docs/recovery-formats.md` before
+changing behavior. Do not introduce
 spreadsheet data typing, formulas, automatic date conversion, numeric coercion,
 cleanup, or silent sanitization.
 
@@ -45,7 +46,8 @@ cleanup, or silent sanitization.
   choice, and unchanged raw rows after edits.
 - Preserve multiline values when an editor is opened and closed without a
   textual change.
-- Support comma and tab only unless scope is explicitly changed.
+- Support exactly comma, tab, semicolon, and pipe. Do not add custom or
+  multi-character delimiters without a new approved design.
 - Default to first-row headers; preserve the user-controlled data-row mode.
 - Always download a new file and never overwrite the source.
 - Keep user file content out of logs, URLs, `localStorage`, `sessionStorage`,
@@ -141,7 +143,7 @@ Selected exact versions:
 
 Use `npm ci` and `npm run vendor`; do not paste, reconstruct, or edit minified
 upstream code. Keep licenses, `package-lock.json`, and generated SHA-256 records.
-CSV-4 requires the `vendored` dependency state.
+CSV-5 requires the `vendored` dependency state.
 
 ## Verification
 

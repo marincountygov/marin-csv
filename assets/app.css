@@ -473,6 +473,39 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
   font-size: 0.78rem;
 }
 
+.csv-value-filter {
+  display: flex;
+  min-inline-size: 0;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  align-items: center;
+  margin-block-start: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border: var(--pico-border-width) solid var(--app-control-border, var(--pico-form-element-border-color));
+  background: var(--app-bg-soft, var(--pico-card-sectioning-background-color));
+  font-size: 0.8rem;
+}
+
+.csv-value-filter[hidden] {
+  display: none;
+}
+
+.csv-value-filter strong {
+  min-inline-size: 0;
+  flex: 1 1 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-value-filter button {
+  min-block-size: 2rem;
+  inline-size: auto;
+  margin: 0;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+}
+
 .csv-workspace-inspector-row {
   display: flex;
   flex-wrap: wrap;
@@ -673,6 +706,62 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
   font-size: clamp(1.35rem, 4vw, 2.25rem);
   font-weight: 700;
   text-align: center;
+}
+
+.csv-cell-context-menu {
+  position: fixed;
+  z-index: 1500;
+  display: grid;
+  inline-size: min(17rem, calc(100vw - 1rem));
+  padding: 0.3rem;
+  border: var(--pico-border-width) solid var(--app-control-border, var(--pico-form-element-border-color));
+  border-radius: var(--pico-border-radius);
+  background: var(--app-surface, var(--pico-card-background-color));
+  box-shadow: var(--pico-box-shadow);
+}
+
+.csv-cell-context-menu[hidden] {
+  display: none;
+}
+
+.csv-cell-context-menu button {
+  inline-size: 100%;
+  min-block-size: 2.4rem;
+  margin: 0;
+  padding: 0.42rem 0.6rem;
+  border: 0;
+  border-radius: calc(var(--pico-border-radius) * 0.6);
+  background: transparent;
+  color: var(--app-text, var(--pico-color));
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-align: start;
+}
+
+.csv-cell-context-menu button:hover,
+.csv-cell-context-menu button:focus-visible {
+  background: var(--app-bg-soft, var(--pico-card-sectioning-background-color));
+}
+
+.csv-cell-context-menu button:focus-visible {
+  outline: var(--pico-outline-width) solid var(--pico-primary-focus);
+  outline-offset: -1px;
+}
+
+.csv-cell-context-menu button:disabled {
+  opacity: var(--pico-form-element-disabled-opacity, 0.5);
+  cursor: not-allowed;
+}
+
+.csv-cell-context-menu hr {
+  inline-size: 100%;
+  margin: 0.3rem 0;
+  border: 0;
+  border-block-start: var(--pico-border-width) solid var(--app-border, var(--pico-border-color));
+}
+
+.csv-cell-context-menu .csv-context-destructive:not(:disabled) {
+  color: var(--app-danger-text, var(--pico-del-color));
 }
 
 .csv-dialog {
@@ -1040,6 +1129,14 @@ body[data-workspace-mode="expanded"] .csv-operation-status {
     box-shadow: none;
   }
 
+  .csv-value-filter {
+    align-items: stretch;
+  }
+
+  .csv-value-filter button {
+    inline-size: 100%;
+  }
+
   .csv-file-details,
   .csv-warnings {
     flex-basis: 100%;
@@ -1137,5 +1234,18 @@ body[data-workspace-mode="expanded"] .csv-operation-status {
   .csv-workspace-divider,
   .csv-toolbar-separator {
     background: CanvasText;
+  }
+
+  .csv-cell-context-menu {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  .csv-cell-context-menu button:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .csv-cell-context-menu .csv-context-destructive:not(:disabled) {
+    color: CanvasText;
   }
 }

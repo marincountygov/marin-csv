@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise CSV-4 local recovery through the Marin CSV interface.
+"""Exercise CSV-4 recovery retained by the CSV-6 Marin CSV interface.
 
 The in-memory mode uses the production coordinator with its deterministic
 MemoryRecoveryStore so UI behavior can run in policy-restricted CI. The normal
@@ -62,10 +62,10 @@ def accept_confirmation(page) -> None:
     dialog.wait_for(state="hidden")
 
 
-def upload(page, name: str, payload: bytes) -> None:
+def upload(page, name: str, payload: bytes, mime_type: str = "text/csv") -> None:
     page.locator("#csv-file-input").set_input_files({
         "name": name,
-        "mimeType": "text/csv",
+        "mimeType": mime_type,
         "buffer": payload,
     })
     page.locator("#csv-editor-view").wait_for(state="visible")
@@ -173,8 +173,10 @@ def in_memory_run(screenshots: Path | None = None) -> None:
             page.locator("#csv-open-another-button").click()
             accept_confirmation(page)
             page.locator("#csv-open-view").wait_for(state="visible")
-            upload(page, "second.csv", b"id,value\nA,second\n")
+            upload(page, "second.psv", b"id|value\nA|second\n", "text/plain")
             wait_saved(page)
+            require(page.locator("#csv-delimiter-select").input_value() == "|",
+                    "The pipe delimiter was not retained when the second document entered recovery")
             require(page.evaluate("window.__marinCsvRecoveryStore.documents.size") == 2,
                     "Opening a second source did not retain both recovery records")
 
@@ -197,7 +199,7 @@ def in_memory_run(screenshots: Path | None = None) -> None:
             # verify that it opens read-only and can be forked explicitly.
             page.evaluate("""() => {
               const store = window.__marinCsvRecoveryStore;
-              const second = [...store.documents.values()].find(value => value.filename === 'second.csv');
+              const second = [...store.documents.values()].find(value => value.filename === 'second.psv');
               store.leases.set(second.documentId, {
                 documentId: second.documentId,
                 sessionId: 'another-tab',
@@ -209,7 +211,7 @@ def in_memory_run(screenshots: Path | None = None) -> None:
             }""")
             page.locator("#csv-recent-button").click()
             page.locator("#csv-recent-dialog").wait_for(state="visible")
-            second_item = page.locator("#csv-recent-dialog-list .csv-recent-item").filter(has_text="second.csv")
+            second_item = page.locator("#csv-recent-dialog-list .csv-recent-item").filter(has_text="second.psv")
             second_item.locator("button[data-recovery-action='open']").click()
             accept_confirmation(page)
             page.wait_for_function(
@@ -217,8 +219,27 @@ def in_memory_run(screenshots: Path | None = None) -> None:
             )
             require(page.locator("#csv-grid").get_attribute("aria-readonly") == "true",
                     "A document with another active writer did not open read-only")
+            require(page.locator("#csv-delimiter-select").input_value() == "|",
+                    "The recovered pipe-delimited document lost its delimiter metadata")
             require(page.locator("#csv-recovery-copy-button").is_visible(),
                     "The conflict state did not offer an independent copy")
+
+            # The custom cell menu remains useful in a read-only writer
+            # conflict, but must not expose mutation commands.
+            data_cell(page, 1, 1).click(button="right")
+            page.get_by_role("menu", name="Field actions").wait_for(state="visible")
+            require(page.locator("#csv-context-edit").is_disabled(),
+                    "Read-only conflict exposed Edit field")
+            require(page.locator("#csv-context-clear").is_disabled(),
+                    "Read-only conflict exposed Clear field")
+            require(page.locator("#csv-context-filter").is_enabled(),
+                    "Read-only conflict disabled view-only exact filtering")
+            require(page.locator("#csv-context-delete-row").is_disabled(),
+                    "Read-only conflict exposed Delete row")
+            require(page.locator("#csv-context-delete-column").is_disabled(),
+                    "Read-only conflict exposed Delete column")
+            page.keyboard.press("Escape")
+
             page.locator("#csv-recovery-copy-button").click()
             wait_saved(page)
             require(page.locator("#csv-grid").get_attribute("aria-readonly") == "false",
@@ -280,7 +301,7 @@ def http_run(screenshots: Path | None = None) -> None:
                 page.wait_for_function(
                     "() => document.querySelector('#csv-recovery-status')?.textContent === 'Local recovery ready'"
                 )
-                upload(page, "recovery.csv", b"id,value\n001,original\n")
+                upload(page, "recovery.psv", b"id|value\n001|original\n", "text/plain")
                 wait_saved(page)
                 edit_cell(page, 1, 1, "survives refresh")
                 wait_saved(page)
@@ -291,6 +312,8 @@ def http_run(screenshots: Path | None = None) -> None:
                 wait_for_grid(page)
                 require(data_cell(page, 1, 1).inner_text() == "survives refresh",
                         "A confirmed refresh did not restore the journaled value")
+                require(page.locator("#csv-delimiter-select").input_value() == "|",
+                        "A confirmed refresh did not restore the pipe delimiter")
                 require(page.locator("#csv-recovery-status").get_attribute("data-state") == "recovered",
                         "Confirmed refresh did not report recovered local work")
 

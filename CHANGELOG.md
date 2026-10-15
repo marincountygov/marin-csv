@@ -1,5 +1,40 @@
 # Changelog
 
+## CSV-6 — 2026-10-15
+
+- Add an application-owned field context menu for right-click, touch hold,
+  Shift+F10, and the Context Menu key.
+- Add Edit field, Clear field, Filter to this value, Delete row, and Delete
+  column commands that retain physical document coordinates.
+- Add exact, case-sensitive column-value filtering that combines with the
+  existing global text filter without changing CSV output.
+- Add a visible exact-filter indicator and explicit clear control.
+- Add keyboard menu navigation, focus restoration, viewport-aware positioning,
+  dark-mode, forced-colors, narrow-screen, and security regression coverage.
+- Preserve the existing CSV-5 delimiter, recovery, parsing, and serialization
+  contracts without adding a dependency or recovery-format migration.
+
+## CSV-5 — 2026-10-15
+
+- Add a fixed user-facing delimiter list for comma, tab, semicolon, and pipe
+  without adding a custom or multi-character delimiter workflow.
+- Centralize delimiter names, labels, filename hints, validation, and download
+  MIME types in the preservation engine.
+- Extend deterministic automatic detection to all four delimiters, with `.tsv`
+  and `.psv` tie-breaking hints and a stable comma fallback.
+- Add advisory warnings for ambiguous interpretations and one-column results;
+  users can reparse original bytes through the existing Delimiter control
+  before editing.
+- Expand file-picker hints to `.csv`, `.tsv`, `.psv`, and `.txt`, and use the
+  generic **Download file** label for editable documents.
+- Preserve quoted semicolons and pipes, retain original filename extensions,
+  and use explicit MIME types for alternate-delimiter downloads.
+- Keep the CSV-4 IndexedDB schema and snapshot formats unchanged; delimiter
+  strings already round-trip through local recovery.
+- Expand engine, Papa Parse, large-file, recovery, and real-browser coverage to
+  the new delimiters while retaining all earlier preservation and workspace
+  regressions.
+
 ## CSV-4 — 2026-10-14
 
 - Add native IndexedDB local workspace recovery with separate document,

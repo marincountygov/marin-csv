@@ -134,15 +134,15 @@ def validate_shell() -> dict:
 def validate_third_party() -> str:
     package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     expected_versions = {"papaparse": "5.7.0", "tabulator-tables": "6.6.1"}
-    require(package.get("version") == "0.1.0-csv.4",
-            "package.json must identify the CSV-4 local recovery release")
+    require(package.get("version") == "0.1.0-csv.6",
+            "package.json must identify the CSV-6 cell context-menu release")
     require(package.get("devDependencies") == expected_versions,
             "package.json must pin the selected exact Papa Parse and Tabulator versions")
 
     manifest = json.loads((THIRD_PARTY / "vendor-manifest.json").read_text(encoding="utf-8"))
     require(manifest.get("schema") == 1, "Unexpected third-party vendor manifest schema")
     status = manifest.get("status")
-    require(status == "vendored", "CSV-4 requires the reviewed vendored dependency state")
+    require(status == "vendored", "CSV-6 requires the reviewed vendored dependency state")
     dependencies = manifest.get("dependencies")
     require(isinstance(dependencies, dict) and set(dependencies) == set(expected_versions),
             "Third-party vendor manifest dependency set differs")
@@ -152,7 +152,7 @@ def validate_third_party() -> str:
         require((THIRD_PARTY / name).is_file(), f"Missing local third-party file: {name}")
 
     require((ROOT / "package-lock.json").is_file(),
-            "CSV-4 vendored dependency state requires package-lock.json")
+            "CSV-6 vendored dependency state requires package-lock.json")
     for name, version in expected_versions.items():
         record = dependencies[name]
         require(record.get("version") == version, f"Wrong vendored version for {name}")
@@ -308,6 +308,10 @@ def validate_metadata() -> None:
         "docs/csv-4-manual-review.md",
         "docs/csv-4-recovery-benchmark-results.json",
         "docs/csv-4-recovery-benchmark-results.md",
+        "docs/csv-5-implementation-spec.md", "docs/csv-5-findings.md",
+        "docs/csv-5-test-report.md", "docs/csv-5-manual-review.md",
+        "docs/csv-6-implementation-spec.md", "docs/csv-6-findings.md",
+        "docs/csv-6-test-report.md", "docs/csv-6-manual-review.md",
         "docs/development.md",
     )
     for relative in required_docs:

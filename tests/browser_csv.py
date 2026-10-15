@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the real Papa Parse and Tabulator Marin CSV workflow through CSV-3."""
+"""Exercise the real Papa Parse and Tabulator Marin CSV workflow through CSV-6."""
 from __future__ import annotations
 
 import argparse
@@ -122,7 +122,11 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             require(page.locator("#csv-drop-zone").get_attribute("role") is None,
                     "Drop zone must not wrap buttons in another interactive control")
             require(page.locator("#csv-file-input").get_attribute("accept")
-                    == ".csv,.tsv,text/csv,text/tab-separated-values", "File input types differ")
+                    == ".csv,.tsv,.psv,.txt,text/csv,text/tab-separated-values,text/plain",
+                    "File input types differ")
+            require(page.locator("#csv-delimiter-select option").all_text_contents()
+                    == ["Comma (,)", "Tab", "Semicolon (;)", "Pipe (|)"],
+                    "Delimiter choices differ")
 
             page.locator("#csv-open-button").focus()
             with page.expect_file_chooser() as chooser_info:
@@ -260,10 +264,10 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             require(cell_text(page, 1, 1) == "00888", "Block paste second cell differs")
             require(cell_text(page, 2, 0) == second_row_before,
                     "Trailing clipboard line ending cleared the following row")
-            require(page.evaluate("""() => {
+            page.wait_for_function("""() => {
                 const active = document.activeElement;
                 return active?.dataset?.documentRowIndex === '1' && active?.dataset?.columnIndex === '0';
-            }"""), "Focus was not restored to the paste origin after grid reconstruction")
+            }""")
             page.locator("#csv-undo-button").click()
             page.wait_for_function(
                 "() => document.querySelector(`.tabulator-cell[data-document-row-index='1'][data-column-index='0']`)?.innerText === '000123'"
@@ -374,6 +378,111 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             require(sorted_bytes.find(b"000999") < sorted_bytes.find(b"000124"),
                     "View sorting changed physical document export order")
 
+            # CSV-6 field context menu uses the clicked physical cell, exposes
+            # complete keyboard semantics, and routes mutations through the
+            # preservation engine rather than Tabulator's data model.
+            edit_target = data_cell(page, 1, 3)
+            edit_target.click(button="right")
+            menu = page.get_by_role("menu", name="Field actions")
+            menu.wait_for(state="visible")
+            require(menu.get_by_role("menuitem").all_text_contents() == [
+                "Edit field", "Clear field", "Filter to this value",
+                "Delete row…", "Delete column…",
+            ], "Field context menu actions or order differ")
+            menu.get_by_role("menuitem", name="Edit field").click()
+            editor = edit_target.locator("textarea.csv-tabulator-editor")
+            editor.wait_for()
+            require(editor.input_value() == "03-04",
+                    "Context-menu editing did not expose the complete existing value")
+            editor.press("Escape")
+
+            clear_target = data_cell(page, 1, 4)
+            clear_target.click(button="right")
+            page.get_by_role("menuitem", name="Clear field").click()
+            page.wait_for_function(
+                "() => document.querySelector(`.tabulator-cell[data-document-row-index='1'][data-column-index='4']`)?.innerText.trim() === ''"
+            )
+            page.locator("#csv-undo-button").click()
+            page.wait_for_function(
+                "() => document.querySelector(`.tabulator-cell[data-document-row-index='1'][data-column-index='4']`)?.innerText === '1E10'"
+            )
+
+            filter_target = data_cell(page, 2, 1)
+            filter_target.focus()
+            page.keyboard.press("Shift+F10")
+            menu.wait_for(state="visible")
+            require(page.locator("#csv-context-edit").evaluate("el => el === document.activeElement"),
+                    "The field context menu did not focus its first enabled command")
+            require(page.evaluate("""() => {
+                const menu = document.querySelector('#csv-cell-context-menu').getBoundingClientRect();
+                return menu.left >= 0 && menu.top >= 0
+                  && menu.right <= document.documentElement.clientWidth
+                  && menu.bottom <= document.documentElement.clientHeight;
+            }"""), "Keyboard-opened context menu escaped the viewport")
+            page.keyboard.press("End")
+            require(page.locator("#csv-context-delete-column").evaluate("el => el === document.activeElement"),
+                    "End did not move to the last enabled menu command")
+            page.keyboard.press("Home")
+            require(page.locator("#csv-context-edit").evaluate("el => el === document.activeElement"),
+                    "Home did not move to the first enabled menu command")
+            page.keyboard.press("ArrowDown")
+            require(page.locator("#csv-context-clear").evaluate("el => el === document.activeElement"),
+                    "Arrow Down did not move between menu commands")
+            page.keyboard.press("Escape")
+            require(menu.is_hidden(), "Escape did not close the field context menu")
+            require(filter_target.evaluate("el => el === document.activeElement"),
+                    "Escape did not restore focus to the originating field")
+
+            filter_target.click(button="right")
+            page.get_by_role("menuitem", name="Filter to this value").click()
+            page.locator("#csv-value-filter").wait_for(state="visible")
+            require("02108" in page.locator("#csv-value-filter-label").inner_text(),
+                    "Exact-value filter indicator does not identify the selected value")
+            page.wait_for_function(
+                "() => [...document.querySelectorAll('.tabulator-row[data-document-row-index]')].filter((row) => row.offsetParent !== null).length === 1"
+            )
+            require(data_cell(page, 2, 0).is_visible(), "Exact-value filter hid the selected row")
+            page.locator("#csv-filter-input").fill("000124")
+            require(data_cell(page, 2, 0).is_visible(),
+                    "Global and exact-value filters did not combine with AND semantics")
+            page.locator("#csv-filter-input").fill("000999")
+            page.wait_for_function(
+                "() => [...document.querySelectorAll('.tabulator-row[data-document-row-index]')].filter((row) => row.offsetParent !== null).length === 0"
+            )
+            page.locator("#csv-filter-input").fill("")
+            page.locator("#csv-clear-value-filter").click()
+            page.wait_for_function(
+                "() => [...document.querySelectorAll('.tabulator-row[data-document-row-index]')].filter((row) => row.offsetParent !== null).length === 2"
+            )
+
+            # The sorted visual position must not change which physical row is
+            # deleted. Row 2 remains the third file record even when rendered first.
+            data_cell(page, 2, 0).click(button="right")
+            page.get_by_role("menuitem", name="Delete row…").click()
+            require(page.locator("#csv-confirm-title").inner_text() == "Delete file row 3?",
+                    "Context delete-row did not retain the clicked physical row")
+            page.locator("#csv-confirm-accept").click()
+            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '2'")
+            require(data_cell(page, 2, 0).count() == 0,
+                    "Context delete-row removed a different physical row")
+            page.locator("#csv-undo-button").click()
+            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '3'")
+
+            data_cell(page, 1, 1).click(button="right")
+            page.get_by_role("menuitem", name="Delete column…").click()
+            require(page.locator("#csv-confirm-title").inner_text() == "Delete column B?",
+                    "Context delete-column did not target the clicked column")
+            page.locator("#csv-confirm-accept").click()
+            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '7'")
+            page.locator("#csv-undo-button").click()
+            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '8'")
+
+            if screenshots:
+                data_cell(page, 1, 0).click(button="right")
+                menu.wait_for(state="visible")
+                page.screenshot(path=str(screenshots / "csv-cell-context-menu-desktop-light.png"))
+                page.keyboard.press("Escape")
+
             # Native form dialog, inline validation, and replace command.
             page.locator("#csv-find-button").click()
             require(page.locator("#csv-find-dialog").get_attribute("open") is not None,
@@ -464,6 +573,59 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                 "() => document.querySelector(`.tabulator-cell[data-document-row-index='1'][data-column-index='0']`)?.innerText === '001'"
             )
 
+            # Semicolon detection preserves literal commas and quoted semicolons.
+            open_another(page)
+            upload(page, "regional.csv", "text/csv",
+                   b'id;amount;note\n001;1,23;"contains;semicolon"\n')
+            wait_for_grid(page)
+            require(page.locator("#csv-delimiter-select").input_value() == ";",
+                    "Semicolon delimiter was not detected")
+            require(cell_text(page, 1, 1) == "1,23", "Literal comma in semicolon data was altered")
+            require(cell_text(page, 1, 2) == "contains;semicolon",
+                    "Quoted semicolon field was altered")
+
+            # Pipe detection, editing, quoting, filename retention, and the
+            # generic download label operate through the production UI.
+            open_another(page)
+            upload(page, "records.psv", "text/plain",
+                   b'id|value|note\n001|03-04|"contains | a pipe"\n')
+            wait_for_grid(page)
+            require(page.locator("#csv-delimiter-select").input_value() == "|",
+                    "Pipe delimiter was not detected")
+            require(cell_text(page, 1, 2) == "contains | a pipe", "Quoted pipe field was altered")
+            require(page.locator("#csv-download-button").inner_text() == "Download file",
+                    "Editable alternate-delimiter download label is misleading")
+            edit_cell(page, 1, 1, "changed|value")
+            open_more_menu(page)
+            require(page.locator("#csv-delimiter-select").is_disabled(),
+                    "Delimiter remained changeable after a document edit")
+            page.keyboard.press("Escape")
+            with page.expect_download() as pipe_download_info:
+                page.locator("#csv-download-button").click()
+            pipe_download = pipe_download_info.value
+            require(pipe_download.suggested_filename == "records-edited.psv",
+                    "Pipe-delimited edited filename differs")
+            require(b'001|"changed|value"|"contains | a pipe"\n' in download_bytes(pipe_download),
+                    "Pipe-delimited edited output was not quoted correctly")
+            if screenshots:
+                page.screenshot(path=str(screenshots / "csv-pipe-editor-desktop-light.png"), full_page=True)
+
+            # Ambiguous files receive a warning and can be explicitly reparsed
+            # through the existing simple delimiter select before editing.
+            open_another(page)
+            upload(page, "ambiguous.txt", "text/plain", b"a,b;c\n1,2;3\n")
+            wait_for_grid(page)
+            require(page.locator("#csv-delimiter-select").input_value() == ",",
+                    "Ambiguous delimiter fallback changed")
+            require("Check the delimiter" in page.locator("#csv-warnings").text_content(),
+                    "Ambiguous delimiter warning is missing")
+            open_more_menu(page)
+            page.locator("#csv-delimiter-select").select_option(";")
+            page.wait_for_function(
+                "() => document.querySelector('#csv-delimiter-select')?.value === ';' && document.querySelector(`.tabulator-cell[data-document-row-index='1'][data-column-index='0']`)?.innerText === '1,2'"
+            )
+            require(cell_text(page, 1, 0) == "1,2", "Manual semicolon override did not reparse original bytes")
+
             # Invalid UTF-8 produces a visible error rather than repaired data.
             open_another(page)
             page.locator("#csv-file-input").set_input_files({
@@ -511,6 +673,14 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                     "CSV cell markup created a script element")
             require(cell_text(page, 1, 0) == "<script>window.__marinCsvXss=2</script>",
                     "CSV cell markup was not rendered literally")
+            data_cell(page, 1, 0).click(button="right")
+            markup_menu = page.get_by_role("menu", name="Field actions")
+            markup_menu.wait_for(state="visible")
+            require(markup_menu.locator("img, script").count() == 0,
+                    "CSV field markup created executable elements inside the context menu")
+            require("window.__marinCsvXss" not in markup_menu.inner_text(),
+                    "The context menu unnecessarily reproduced the selected CSV value")
+            page.keyboard.press("Escape")
 
             # Paged editing keeps only a bounded physical slice in Tabulator while
             # edits and downloads continue to address the full preservation model.
@@ -540,6 +710,19 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                     "View filtering remained enabled in paged mode")
             require(page.locator("#csv-grid").get_attribute("aria-readonly") == "false",
                     "Paged editing was incorrectly exposed as read-only")
+            data_cell(page, 1, 1).click(button="right")
+            page.get_by_role("menu", name="Field actions").wait_for(state="visible")
+            require(page.locator("#csv-context-edit").is_enabled(),
+                    "Paged mode disabled field editing in the context menu")
+            require(page.locator("#csv-context-clear").is_enabled(),
+                    "Paged mode disabled clearing a nonblank field")
+            require(page.locator("#csv-context-filter").is_disabled(),
+                    "Paged mode exposed unsupported exact-value filtering")
+            require(page.locator("#csv-context-delete-row").is_enabled(),
+                    "Paged mode disabled row deletion")
+            require(page.locator("#csv-context-delete-column").is_enabled(),
+                    "Paged mode disabled column deletion")
+            page.keyboard.press("Escape")
             if screenshots:
                 page.screenshot(path=str(screenshots / "csv-paged-desktop-light.png"), full_page=True)
             page.locator("#csv-next-page-button").click()
@@ -587,6 +770,9 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                     "Preview parser metadata is misleading")
             require(page.locator(".tabulator-cell[data-document-row-index]").count() <= 1_000,
                     "Preview rendered more than its retained row bound")
+            data_cell(page, 1, 0).click(button="right")
+            require(page.locator("#csv-cell-context-menu").is_hidden(),
+                    "Read-only preview replaced the browser menu with unusable field actions")
             if screenshots:
                 page.screenshot(path=str(screenshots / "csv-preview-desktop-light.png"), full_page=True)
             with page.expect_download() as preview_download_info:
@@ -624,6 +810,13 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                 "el => el.scrollWidth > el.clientWidth"), "Grid does not retain its own horizontal scroll region")
             if screenshots:
                 page.screenshot(path=str(screenshots / "csv-editor-mobile-dark.png"), full_page=True)
+                mobile_context_target = data_cell(page, 1, 0)
+                mobile_context_target.scroll_into_view_if_needed()
+                page.wait_for_timeout(100)
+                mobile_context_target.click(button="right")
+                page.get_by_role("menu", name="Field actions").wait_for(state="visible")
+                page.screenshot(path=str(screenshots / "csv-cell-context-menu-mobile-dark.png"))
+                page.keyboard.press("Escape")
             require(not mobile_problems, f"Mobile Marin CSV browser errors: {mobile_problems}")
             mobile.close()
 
@@ -658,7 +851,7 @@ def main() -> None:
                         help="Run a component fixture when HTTP browser navigation is unavailable")
     args = parser.parse_args()
     run(args.screenshots, args.in_memory)
-    print("Marin CSV local-file workflow (CSV-3): PASS")
+    print("Marin CSV local-file workflow (CSV-6): PASS")
     if args.in_memory:
         print("NOT TESTED in this mode: HTTP asset loading, CSP enforcement, and deferred-script timing.")
 

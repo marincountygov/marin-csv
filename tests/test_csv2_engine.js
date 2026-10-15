@@ -121,6 +121,23 @@ test("document loader selects standard, paged, and read-only modes deterministic
   assert.equal(preview.document.columnCount, 1_000);
 });
 
+test("large-file modes retain semicolon and pipe delimiters", () => {
+  const pagedText = `id|value\n${Array.from({ length: 5_001 }, (_, index) => `${index}|v${index}`).join("\n")}`;
+  const paged = Loader.parseDirect(bytes(pagedText), { filename: "paged.psv", papa: Papa });
+  assert.equal(paged.policy.mode, "paged");
+  assert.equal(paged.document.delimiter, "|");
+
+  const wideHeader = Array.from({ length: 1_000 }, (_, index) => `c${index}`).join(";");
+  const wideRow = Array.from({ length: 1_000 }, () => "v").join(";");
+  const preview = Loader.parseDirect(bytes(`${wideHeader}\n${wideRow}\n`), {
+    filename: "wide.csv",
+    delimiter: ";",
+    papa: Papa,
+  });
+  assert.equal(preview.policy.mode, "preview");
+  assert.equal(preview.document.delimiter, ";");
+});
+
 test("small but row-dense files are profiled before full materialization", () => {
   const source = `id\n${"x\n".repeat(250_001)}`;
   const phases = [];

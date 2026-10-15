@@ -9,7 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Marin CSV | County of Marin</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='10' fill='%23000'/%3E%3Cg fill='none' stroke='%23e5b53b' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round' transform='translate(9,9) scale(1.25)'%3E%3Cpath d='M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'/%3E%3Cpath d='M14 2v6h6M8 13h2M8 17h2M14 13h2M14 17h2'/%3E%3C/g%3E%3C/svg%3E">
-    <meta name="description" content="View and edit CSV and TSV files locally without automatic data conversion.">
+    <meta name="description" content="View and edit delimited text files locally without automatic data conversion.">
     <link rel="stylesheet" href="vendor/marinos/marinos.css">
     <link rel="stylesheet" href="vendor/third-party/tabulator.min.css">
     <link rel="stylesheet" href="assets/app.css">
@@ -29,13 +29,13 @@
   <body>
     <noscript>
       <div class="container app-alert app-alert--warning">
-        JavaScript is required to open and edit CSV files in your browser.
+        JavaScript is required to open and edit delimited text files in your browser.
       </div>
     </noscript>
 
     <marin-os-banner></marin-os-banner>
 
-    <marin-app-header app-name="Marin CSV" app-description="View and edit CSV and TSV files locally without automatic data conversion.">
+    <marin-app-header app-name="Marin CSV" app-description="View and edit delimited text files locally without automatic data conversion.">
       <template data-icon>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
@@ -63,13 +63,13 @@
               <path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3"/>
             </svg>
             <div>
-              <h2 id="start-heading">Open a CSV or TSV file</h2>
+              <h2 id="start-heading">Open a delimited text file</h2>
               <p id="csv-drop-help">Drop a file anywhere on this page, or choose a file from your device.</p>
               <div class="csv-open-actions">
                 <button id="csv-open-button" type="button" aria-describedby="csv-drop-help csv-local-note">Choose file</button>
                 <button id="csv-sample-button" type="button" class="secondary">Open sample</button>
               </div>
-              <input id="csv-file-input" class="csv-visually-hidden" type="file" tabindex="-1" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+              <input id="csv-file-input" class="csv-visually-hidden" type="file" tabindex="-1" accept=".csv,.tsv,.psv,.txt,text/csv,text/tab-separated-values,text/plain">
               <p id="csv-local-note" class="csv-local-note">Your file stays in this browser. Marin CSV does not upload its contents.</p>
             </div>
           </div>
@@ -132,7 +132,7 @@
                 </button>
                 <button id="csv-download-button" type="button">
                   <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
-                  <span id="csv-download-label">Download CSV</span>
+                  <span id="csv-download-label">Download file</span>
                 </button>
                 <button id="csv-recent-button" type="button" class="secondary">
                   <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
@@ -204,14 +204,22 @@
                     <label for="csv-delimiter-select">
                       Delimiter
                       <select id="csv-delimiter-select">
-                        <option value=",">Comma</option>
+                        <option value=",">Comma (,)</option>
                         <option value="&#9;">Tab</option>
+                        <option value=";">Semicolon (;)</option>
+                        <option value="|">Pipe (|)</option>
                       </select>
                     </label>
                   </div>
                   <p id="csv-filter-help" class="csv-toolbar-menu-help">Filtering changes only the current view.</p>
                 </div>
               </details>
+            </div>
+
+            <div id="csv-value-filter" class="csv-value-filter" role="status" hidden>
+              <span>Exact filter:</span>
+              <strong id="csv-value-filter-label"></strong>
+              <button id="csv-clear-value-filter" type="button" class="secondary">Clear filter</button>
             </div>
 
             <div class="csv-workspace-inspector-row">
@@ -242,9 +250,9 @@
 
             <div id="csv-selection-status" class="csv-visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
             <div id="csv-grid" class="csv-grid-host" aria-label="CSV data editor" aria-busy="false" aria-describedby="csv-grid-help csv-large-mode-notice csv-selection-status"></div>
-            <p id="csv-grid-help" class="csv-visually-hidden">Double-click or press Enter on a cell to edit. Enter saves a single-line field; Alt+Enter adds a line. In a multiline field, Enter adds a line and Shift+Enter saves. Sorting and filtering change only the view, not the saved row order.</p>
+            <p id="csv-grid-help" class="csv-visually-hidden">Double-click or press Enter on a cell to edit. Right-click, long-press, or press Shift+F10 for field actions. Enter saves a single-line field; Alt+Enter adds a line. In a multiline field, Enter adds a line and Shift+Enter saves. Sorting and filtering change only the view, not the saved row order.</p>
 
-            <div class="csv-workspace-status" aria-label="CSV file status">
+            <div class="csv-workspace-status" aria-label="Delimited file status">
               <span id="csv-status-dimensions">0 rows · 0 columns</span>
               <span id="csv-status-format">UTF-8 · Comma · LF</span>
               <span id="csv-status-state">Unchanged</span>
@@ -254,7 +262,16 @@
         </div>
 
         <div id="csv-drag-overlay" class="csv-drag-overlay" hidden aria-hidden="true">
-          <div>Drop the CSV or TSV file to open it</div>
+          <div>Drop the delimited text file to open it</div>
+        </div>
+
+        <div id="csv-cell-context-menu" class="csv-cell-context-menu" role="menu" aria-label="Field actions" hidden>
+          <button id="csv-context-edit" type="button" role="menuitem" data-context-action="edit">Edit field</button>
+          <button id="csv-context-clear" type="button" role="menuitem" data-context-action="clear">Clear field</button>
+          <button id="csv-context-filter" type="button" role="menuitem" data-context-action="filter">Filter to this value</button>
+          <hr role="separator">
+          <button id="csv-context-delete-row" type="button" role="menuitem" class="csv-context-destructive" data-context-action="delete-row">Delete row…</button>
+          <button id="csv-context-delete-column" type="button" role="menuitem" class="csv-context-destructive" data-context-action="delete-column">Delete column…</button>
         </div>
 
         <dialog id="csv-confirm-dialog" class="csv-dialog" aria-labelledby="csv-confirm-title" aria-describedby="csv-confirm-message">
@@ -321,15 +338,15 @@
 
       <marin-app-info app-name="Marin CSV" repo="marin-csv" security-src="security.json">
         <template data-about>
-          <p>Marin CSV is a local-browser viewer and editor for comma- and tab-delimited text files. Every field is treated as text, so identifiers, leading zeros, long numbers, date-like values, and formula-like values are not converted automatically.</p>
+          <p>Marin CSV is a local-browser viewer and editor for comma-, tab-, semicolon-, and pipe-delimited text files. Every field is treated as text, so identifiers, leading zeros, long numbers, date-like values, and formula-like values are not converted automatically.</p>
           <p>The app keeps the original file bytes. Downloading an untouched file reproduces those bytes exactly. After an edit, Marin CSV preserves the original delimiter, UTF-8 byte-order mark, line-ending style, trailing newline setting, and unchanged row representations wherever possible.</p>
           <p>Files are processed on your device and are not sent to the County of Marin or a third-party service. A same-origin Web Worker performs parsing when the app is served through HTTP or HTTPS, keeping long parsing work off the interface thread.</p>
-          <p>Marin CSV also keeps browser-local recovery copies in IndexedDB so completed edits can survive a refresh or browser restart. Recovery copies remain until you delete them or clear browser data. They are separate from downloaded CSV files and are not an archival backup or user-managed encrypted storage.</p>
+          <p>Marin CSV also keeps browser-local recovery copies in IndexedDB so completed edits can survive a refresh or browser restart. Recovery copies remain until you delete them or clear browser data. They are separate from downloaded files and are not an archival backup or user-managed encrypted storage.</p>
           <p>Large documents use evidence-based safeguards. Moderately large documents are edited 1,000 rows at a time. Documents that exceed the reviewed browser-memory envelope open as a read-only preview; downloading that preview returns an exact copy of the original bytes.</p>
           <p>The editor uses a full-width spreadsheet workspace. Expand workspace temporarily hides the MarinOS header and footer to give the grid the usable browser window; it does not enter browser fullscreen, change the file, or persist after a fresh page load.</p>
         </template>
         <template data-accessibility>
-          <p>Marin CSV supports keyboard operation for opening files, using the command toolbar, expanding or collapsing the workspace, editing cells, using dialogs, filtering, paging large documents, and downloading. The data editor exposes grid, row, column-header, row-header, grid-cell, read-only, selected-range, row-index, and column-index semantics. Progress, completion, selection, and error messages use live status regions.</p>
+          <p>Marin CSV supports keyboard operation for opening files, using the command toolbar, expanding or collapsing the workspace, editing cells, opening field actions with Shift+F10 or the Context Menu key, using dialogs, filtering, paging large documents, and downloading. The data editor exposes grid, row, column-header, row-header, grid-cell, read-only, selected-range, row-index, and column-index semantics. Progress, completion, selection, and error messages use live status regions.</p>
           <p>When the workspace is expanded, hidden MarinOS shell regions are removed from normal keyboard and accessibility interaction. Escape closes a higher-priority dialog, menu, or cell edit before it collapses the workspace.</p>
           <p>Browser-neutral accessibility-tree review and manual testing with screen readers remain required before a production release.</p>
           <p>Report an accessibility problem through the Feedback link or the contact listed on the Security page.</p>

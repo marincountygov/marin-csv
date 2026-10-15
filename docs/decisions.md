@@ -1,18 +1,20 @@
 # Marin CSV architecture decisions
 
-Status: accepted and authoritative for CSV-4 and subsequent implementation phases  
+Status: accepted and authoritative for CSV-6 and subsequent implementation phases  
 Original product decision date: 2026-10-13  
 CSV-2 operational policy formalized: 2026-10-14  
 CSV-3 workspace architecture formalized: 2026-10-14  
-CSV-4 local recovery architecture formalized: 2026-10-14
+CSV-4 local recovery architecture formalized: 2026-10-14  
+CSV-5 common delimiter support formalized: 2026-10-15
+CSV-6 cell context-menu behavior formalized: 2026-10-15
 
 ## Product purpose
 
-Marin CSV is a standalone MarinOS viewer and editor for comma- and tab-delimited
-text files. It provides a familiar local-browser editing interface without the
-silent type inference, date conversion, scientific-notation conversion,
-leading-zero removal, or long-number precision loss that spreadsheet software
-can introduce.
+Marin CSV is a standalone MarinOS viewer and editor for comma-, tab-,
+semicolon-, and pipe-delimited text files. It provides a familiar local-browser
+editing interface without the silent type inference, date conversion,
+scientific-notation conversion, leading-zero removal, or long-number precision
+loss that spreadsheet software can introduce.
 
 Marin CSV is a text-preserving delimited-file editor, not a spreadsheet. Every
 field is represented as a string. The application does not provide formulas,
@@ -62,16 +64,20 @@ The initial product scope includes:
 Sorting and filtering never change exported row order. A future explicit
 "apply sort" operation requires a separate product decision.
 
-### Decision 4 — Supported formats: option B
+### Decision 4 — Supported formats: option B, expanded by CSV-5
 
-Marin CSV supports:
+Marin CSV supports a fixed list of four common single-character delimiters:
 
-- comma-delimited CSV; and
-- tab-delimited TSV.
+- comma;
+- tab;
+- semicolon; and
+- pipe.
 
-The application detects comma versus tab and lets the user choose either
-interpretation before editing. Other delimiters and spreadsheet formats are out
-of scope for this phase.
+The application automatically evaluates all four and shows the selected
+delimiter in the existing user-facing select list. The user may choose another
+supported interpretation before editing. `.tsv` and `.psv` filenames are
+tie-breaking hints; structural consistency remains authoritative. Custom and
+multi-character delimiters remain out of scope.
 
 ### Decision 5 — Save behavior: option A
 
@@ -302,6 +308,33 @@ versioned. Database upgrades are non-destructive. Unsupported or damaged
 records are retained, and Marin CSV may offer the last valid revision read-only
 rather than silently deleting or guessing.
 
+## CSV-5 common delimiter decisions
+
+### Use a fixed four-option list
+
+The Delimiter control contains Comma (,), Tab, Semicolon (;), and Pipe (|). No
+custom-character field or mandatory opening dialog is introduced.
+
+### Keep automatic opening and advisory warnings
+
+Marin CSV automatically selects the strongest supported interpretation. If two
+interpretations are similarly plausible, it warns the user to check the
+delimiter. If the selected interpretation has one column, it warns that another
+delimiter may be appropriate. Warnings do not repair or reject data.
+
+### Preserve filenames and use deliberate MIME types
+
+Downloaded files keep the original extension. Comma uses `text/csv`, tab uses
+`text/tab-separated-values`, and semicolon and pipe use `text/plain`, all with
+UTF-8 charset metadata. Download bytes remain governed only by the preservation
+engine.
+
+### Do not migrate IndexedDB
+
+Delimiter values are already versioned recovery strings. CSV-5 does not change
+the IndexedDB database schema or snapshot format. Existing comma and tab local
+copies remain compatible.
+
 ## Dependency policy
 
 All production browser assets are vendored locally. Marin CSV does not load
@@ -313,18 +346,53 @@ versions and records SHA-256 checksums for copied browser files. A reviewed
 `package-lock.json`, actual vendored distributions, notices, and licenses are
 release requirements.
 
+## CSV-6 cell context-menu decisions
+
+### Use one single-cell context
+
+Right-click, touch hold, Shift+F10, and the Context Menu key target one data
+field. The target stores a stable row ID plus its physical document row and
+column. Visual sorting and filtering never redefine the mutation target.
+
+### Route every mutation through the preservation engine
+
+Edit field, Clear field, Delete row, and Delete column use existing document
+commands. They remain undoable, journaled for IndexedDB recovery, and governed
+by the same download validation as direct edits and toolbar commands.
+
+### Keep structural deletion confirmed
+
+Deleting a row or column uses the existing accessible confirmation dialog.
+Clearing one field is immediate and undoable. A header record cannot be
+deleted as a data row, and the final remaining column cannot be deleted.
+
+### Make value filtering exact and view-only
+
+Filter to this value matches the clicked column using exact, case-sensitive
+string equality, including blank, whitespace, and multiline values. It
+combines with the global text filter using AND semantics. It never changes
+dirty state, undo history, IndexedDB recovery, or serialized output.
+
+### Keep the custom menu limited to useful modes
+
+Standard editable documents expose all five commands. Standard read-only
+conflict documents expose only exact-value filtering. Paged editable documents
+expose edit, clear, and structural deletion but not filtering. Read-only
+preview documents retain the browser's native context menu.
+
 ## Deferred decisions
 
-The following remain outside CSV-4:
+The following remain outside CSV-5:
 
 - a universal or publicly promised maximum file size;
 - non-UTF-8 transcoding;
-- additional delimiters;
+- custom, multi-character, or additional delimiters beyond comma, tab,
+  semicolon, and pipe;
 - applying a visual sort to the saved document;
 - a sanitized export for formula-injection risk;
 - browser File System Access API support;
 - XLSX import or export;
-- advanced row/column selection and context menus;
+- advanced row/column selection beyond the CSV-6 single-cell context menu;
 - fill handles, drag-to-copy, freeze panes, and richer spreadsheet shortcuts;
 - richer status-bar calculations or spreadsheet formulas; and
 - claiming WCAG 2.2 AA conformance without complete manual evidence.

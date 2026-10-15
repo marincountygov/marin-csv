@@ -1,4 +1,4 @@
-/* Marin CSV adapter for the vendored Tabulator runtime (CSV-3). */
+/* Marin CSV adapter for the vendored Tabulator runtime (CSV-6). */
 (function (root, factory) {
   let engine = root.MarinCsvEngine;
   if (!engine && typeof module === "object" && module.exports) engine = require("./csv-engine.js");
@@ -218,6 +218,7 @@
       this.table = null;
       this.ready = false;
       this.filterText = "";
+      this.valueFilter = null;
       this.sorters = [];
       this.active = null;
       this.pendingFocus = null;
@@ -243,8 +244,23 @@
         if (!cell || !this.container.contains?.(cell)) return;
         this._setActiveCoordinates(Number(cell.dataset.documentRowIndex), Number(cell.dataset.columnIndex));
       };
+      this._contextKeyListener = (event) => {
+        const isContextKey = event.key === "ContextMenu"
+          || (event.key === "F10" && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey);
+        if (!isContextKey) return;
+        const element = event.target?.closest?.(".tabulator-cell[data-document-row-index][data-column-index]");
+        if (!element || !this.container.contains?.(element)) return;
+        const rowIndex = Number(element.dataset.documentRowIndex);
+        const columnIndex = Number(element.dataset.columnIndex);
+        const cell = this._findCell(rowIndex, columnIndex);
+        if (!cell) return;
+        this._openContextMenu(event, cell, "keyboard");
+      };
+      this._scrollListener = () => this.callbacks.onContextDismiss?.("scroll");
       this.container.addEventListener("paste", this._pasteListener);
       this.container.addEventListener("focusin", this._focusListener);
+      this.container.addEventListener("keydown", this._contextKeyListener);
+      this.container.addEventListener("scroll", this._scrollListener, true);
     }
 
     get type() {
@@ -275,6 +291,8 @@
       this._destroyTable();
       this.container.removeEventListener("paste", this._pasteListener);
       this.container.removeEventListener("focusin", this._focusListener);
+      this.container.removeEventListener("keydown", this._contextKeyListener);
+      this.container.removeEventListener("scroll", this._scrollListener, true);
       this.active = null;
       this.pendingFocus = null;
     }
@@ -367,6 +385,9 @@
       if (this.viewOptions.disableSortFilter) {
         this.sorters = [];
         this.filterText = "";
+        this.valueFilter = null;
+      } else if (this.valueFilter && this.valueFilter.columnIndex >= documentModel.columnCount) {
+        this.valueFilter = null;
       }
       return this.render();
     }
@@ -508,6 +529,12 @@
       });
       table.on?.("cellClick", (_event, cell) => this._setActive(cell));
       table.on?.("cellDblClick", (_event, cell) => this._setActive(cell));
+      table.on?.("cellContext", (event, cell) => {
+        this._openContextMenu(event, cell, "pointer");
+      });
+      table.on?.("cellTapHold", (event, cell) => {
+        this._openContextMenu(event, cell, "touch");
+      });
       table.on?.("cellEditing", (cell) => this._setActive(cell));
       table.on?.("cellEdited", (cell) => {
         if (this.viewOptions.readOnly) return;
@@ -677,6 +704,50 @@
       this._setActiveCoordinates(rowData.__documentIndex, columnIndex);
     }
 
+    _contextCoordinates(event, element, source) {
+      const clientX = Number(event?.clientX);
+      const clientY = Number(event?.clientY);
+      if (source !== "keyboard" && Number.isFinite(clientX) && Number.isFinite(clientY)
+          && (clientX !== 0 || clientY !== 0)) {
+        return { clientX, clientY };
+      }
+      const rect = element?.getBoundingClientRect?.();
+      if (!rect) return { clientX: 16, clientY: 16 };
+      return {
+        clientX: rect.left + Math.min(Math.max(rect.width / 2, 12), 32),
+        clientY: rect.top + Math.min(Math.max(rect.height / 2, 12), 32),
+      };
+    }
+
+    _openContextMenu(event, cell, source = "pointer") {
+      if (!this.document || !cell || typeof this.callbacks.onContextMenu !== "function") return false;
+      const rowData = cell.getRow?.().getData?.();
+      const columnIndex = columnIndexFromField(cell.getField?.());
+      if (!rowData || columnIndex === null) return false;
+      const rowIndex = rowData.__documentIndex;
+      const row = this.document.rows?.[rowIndex];
+      if (!row) return false;
+      this.table?.deselectRange?.();
+      this._clearRangeSelection();
+      this._setActive(cell);
+      const element = cell.getElement?.();
+      const coordinates = this._contextCoordinates(event, element, source);
+      const handled = this.callbacks.onContextMenu({
+        rowId: row.id,
+        rowIndex,
+        columnIndex,
+        value: String(cell.getValue?.() ?? this.document.getCell(rowIndex, columnIndex)),
+        columnName: this.document.getHeaders()[columnIndex] || `Column ${Engine.columnLabel(columnIndex)}`,
+        source,
+        ...coordinates,
+      }) !== false;
+      if (handled) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+      }
+      return handled;
+    }
+
     _applySorters() {
       if (this.viewOptions.disableSortFilter || !this.ready || !this.table || !this.sorters.length) return;
       const valid = this.sorters.filter((sorter) => {
@@ -689,10 +760,16 @@
 
     _filterFunction() {
       const needle = this.filterText.trim().toLocaleLowerCase();
-      if (!needle) return null;
-      return (record) => Object.entries(record).some(([key, cellValue]) => (
-        DATA_FIELD.test(key) && String(cellValue).toLocaleLowerCase().includes(needle)
-      ));
+      const exact = this.valueFilter;
+      if (!needle && !exact) return null;
+      return (record) => {
+        const matchesText = !needle || Object.entries(record).some(([key, cellValue]) => (
+          DATA_FIELD.test(key) && String(cellValue).toLocaleLowerCase().includes(needle)
+        ));
+        if (!matchesText) return false;
+        if (!exact) return true;
+        return String(record[`c${exact.columnIndex}`] ?? "") === exact.value;
+      };
     }
 
     _applyFilter() {
@@ -707,6 +784,40 @@
       this.filterText = String(value || "");
       this._applyFilter();
       return true;
+    }
+
+    setValueFilter(columnIndex, value) {
+      if (this.viewOptions.disableSortFilter || !Number.isInteger(columnIndex)
+          || columnIndex < 0 || columnIndex >= (this.document?.columnCount || 0)) return false;
+      this.valueFilter = { columnIndex, value: String(value ?? "") };
+      this._applyFilter();
+      return true;
+    }
+
+    clearValueFilter() {
+      const hadFilter = Boolean(this.valueFilter);
+      this.valueFilter = null;
+      this._applyFilter();
+      return hadFilter;
+    }
+
+    getValueFilter() {
+      return this.valueFilter ? { ...this.valueFilter } : null;
+    }
+
+    adjustValueFilterForColumnInsert(index) {
+      if (!this.valueFilter || !Number.isInteger(index)) return this.getValueFilter();
+      if (this.valueFilter.columnIndex >= index) this.valueFilter.columnIndex += 1;
+      this._applyFilter();
+      return this.getValueFilter();
+    }
+
+    adjustValueFilterForColumnDelete(index) {
+      if (!this.valueFilter || !Number.isInteger(index)) return this.getValueFilter();
+      if (this.valueFilter.columnIndex === index) this.valueFilter = null;
+      else if (this.valueFilter.columnIndex > index) this.valueFilter.columnIndex -= 1;
+      this._applyFilter();
+      return this.getValueFilter();
     }
 
     getActiveCell() {
@@ -742,6 +853,15 @@
       if (!Number.isInteger(rowIndex) || !Number.isInteger(columnIndex)) return;
       this.pendingFocus = { rowIndex, columnIndex };
       this._applyPendingFocus();
+    }
+
+    editCell(rowIndex, columnIndex) {
+      if (this.viewOptions.readOnly || !this.ready) return false;
+      const cell = this._findCell(rowIndex, columnIndex);
+      if (!cell || typeof cell.edit !== "function") return false;
+      this._setActive(cell);
+      cell.edit();
+      return true;
     }
   }
 

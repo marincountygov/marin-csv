@@ -84,6 +84,24 @@ test("preview snapshots remain bounded and preserve exact source bytes", () => {
   assert.equal(recovered.downloadCount, 1);
 });
 
+test("recovery snapshots retain semicolon and pipe delimiters without a format migration", () => {
+  for (const [filename, delimiter, sourceText] of [
+    ["regional.csv", ";", 'id;note\n001;"contains;semicolon"\n'],
+    ["records.psv", "|", 'id|note\n001|"contains|pipe"\n'],
+  ]) {
+    const source = bytes(sourceText);
+    const documentModel = Engine.CsvDocument.fromBytes(source, { filename, delimiter });
+    documentModel.setCell(1, 1, `changed${delimiter}value`);
+    const snapshot = documentModel.toRecoverySnapshot();
+    const recovered = Engine.documentFromRecoverySnapshot(snapshot, source);
+
+    assert.equal(snapshot.formatVersion, 1);
+    assert.equal(recovered.delimiter, delimiter);
+    assert.equal(recovered.metadata().delimiterName, delimiter === ";" ? "Semicolon" : "Pipe");
+    assert.equal(text(recovered), text(documentModel));
+  }
+});
+
 test("unsupported snapshots and journal commands fail explicitly", () => {
   const source = bytes("a\n1\n");
   assert.throws(

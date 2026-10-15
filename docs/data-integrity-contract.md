@@ -1,7 +1,7 @@
 # Marin CSV data-integrity contract
 
-Status: authoritative for CSV-4  
-Last reviewed: 2026-10-14
+Status: authoritative for CSV-6  
+Last reviewed: 2026-10-15
 
 ## Governing rule
 
@@ -9,16 +9,23 @@ Marin CSV must never silently interpret, convert, normalize, truncate, repair,
 reorder, or sanitize a field. Every field is a string. Display state must not
 become export state.
 
+The CSV-6 field context menu does not create a second mutation path. Edit,
+clear, and structural deletion commands are preservation-engine operations.
+Exact-value filtering is display state only and cannot affect physical order,
+dirty state, recovery state, or downloaded bytes.
+
 ## Input and encoding
 
-Marin CSV accepts comma-delimited CSV and tab-delimited TSV. Input is decoded as
-strict UTF-8, with or without a UTF-8 BOM. Invalid UTF-8 and unclosed quoted
-fields are rejected rather than guessed or repaired.
+Marin CSV accepts comma-, tab-, semicolon-, and pipe-delimited text. Input is
+decoded as strict UTF-8, with or without a UTF-8 BOM. Invalid UTF-8 and unclosed
+quoted fields are rejected rather than guessed or repaired.
 
-Delimiter detection is deterministic between comma and tab. The user may
-explicitly choose either delimiter before editing. The app does not infer
-whether the first row is a header: header mode is on by default and remains
-user-controlled.
+Delimiter detection deterministically evaluates the four supported delimiters.
+`.tsv` and `.psv` are tie-breaking filename hints. The user may explicitly
+choose any supported delimiter before editing, which reparses the original
+bytes. The app warns without repairing when the interpretation is ambiguous or
+produces only one column. It does not infer whether the first row is a header:
+header mode is on by default and remains user-controlled.
 
 ## Mandatory structural profile
 
@@ -87,7 +94,7 @@ metadata.
 
 After an edit, Marin CSV:
 
-- retains the original comma or tab delimiter;
+- retains the original selected comma, tab, semicolon, or pipe delimiter;
 - retains an original UTF-8 BOM;
 - uses the original dominant line-ending style for inserted or reconstructed
   separators;
@@ -230,8 +237,8 @@ not materialize omitted rows merely to create a checkpoint.
 ## Local processing and storage
 
 Marin CSV does not place file content in URLs, `localStorage`, `sessionStorage`,
-analytics, console output, error telemetry, or network requests. CSV-4 does
-intentionally persist recovery records in IndexedDB until explicitly deleted or
+analytics, console output, error telemetry, or network requests. Marin CSV
+intentionally persists recovery records in IndexedDB until explicitly deleted or
 removed by browser storage controls. `sessionStorage` may contain only opaque
 session/document identifiers.
 

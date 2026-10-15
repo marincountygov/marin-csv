@@ -60,6 +60,59 @@ test("tab-delimited files are detected deterministically and preserve literal co
   assert.equal(document.metadata().delimiterName, "Tab");
 });
 
+test("the supported delimiter list drives names, labels, and download MIME types", () => {
+  assert.deepEqual(Engine.supportedDelimiters().map(({ value, name, label, mimeType }) => ({
+    value, name, label, mimeType,
+  })), [
+    { value: ",", name: "Comma", label: "Comma (,)", mimeType: "text/csv;charset=utf-8" },
+    { value: "\t", name: "Tab", label: "Tab", mimeType: "text/tab-separated-values;charset=utf-8" },
+    { value: ";", name: "Semicolon", label: "Semicolon (;)", mimeType: "text/plain;charset=utf-8" },
+    { value: "|", name: "Pipe", label: "Pipe (|)", mimeType: "text/plain;charset=utf-8" },
+  ]);
+  assert.equal(Engine.delimiterMimeType(";"), "text/plain;charset=utf-8");
+  assert.equal(Engine.delimiterMimeType("|"), "text/plain;charset=utf-8");
+});
+
+test("semicolon-delimited files preserve literal commas and quoted semicolons", () => {
+  const document = open('id;amount;note\n001;1,23;"contains;semicolon"\n', {
+    filename: "regional.csv",
+  });
+  assert.equal(document.delimiter, ";");
+  assert.equal(document.metadata().delimiterName, "Semicolon");
+  assert.deepEqual(document.rows[1].cells, ["001", "1,23", "contains;semicolon"]);
+});
+
+test("pipe-delimited files preserve quoted pipes and retain PSV filenames", () => {
+  const source = 'id|value|note\n001|03-04|"contains | a pipe"\n';
+  const document = open(source, { filename: "records.psv" });
+  assert.equal(document.delimiter, "|");
+  assert.equal(document.metadata().delimiterName, "Pipe");
+  assert.deepEqual(document.rows[1].cells, ["001", "03-04", "contains | a pipe"]);
+  document.setCell(1, 1, "changed|value");
+  assert.equal(decode(document.exportBytes()), 'id|value|note\n001|"changed|value"|"contains | a pipe"\n');
+  assert.equal(document.downloadName(), "records-edited.psv");
+});
+
+test("delimiter detection reports ambiguous and single-column files without repairing them", () => {
+  const ambiguous = open("a,b;c\n1,2;3\n", { filename: "ambiguous.txt" });
+  assert.equal(ambiguous.delimiter, ",");
+  assert.ok(ambiguous.structuralWarnings().some((warning) => warning.code === "AMBIGUOUS_DELIMITER"));
+
+  const oneColumn = open("plain text\nsecond line\n", { filename: "notes.txt" });
+  assert.equal(oneColumn.delimiter, ",");
+  assert.deepEqual(oneColumn.rows.map((row) => row.cells), [["plain text"], ["second line"]]);
+  assert.ok(oneColumn.structuralWarnings().some((warning) => warning.code === "SINGLE_COLUMN"));
+
+  const pipeHint = open("plain text\nsecond line\n", { filename: "notes.psv" });
+  assert.equal(pipeHint.delimiter, "|");
+});
+
+test("a filename hint never overrides stronger delimiter structure", () => {
+  const document = open("a,b,c\n1,2,3\n", { filename: "misnamed.psv" });
+  assert.equal(document.delimiter, ",");
+  assert.equal(document.rows[1].cells[2], "3");
+});
+
 test("explicit delimiter selection overrides filename and detection", () => {
   const document = open("a\tb\n1\t2\n", { filename: "misnamed.csv", delimiter: "," });
   assert.equal(document.delimiter, ",");

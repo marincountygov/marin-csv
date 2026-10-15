@@ -79,7 +79,7 @@ test("validation explicitly reports unavailable when Papa Parse is absent", () =
   });
 });
 
-test("deterministic generated CSV and TSV records agree across newline styles", () => {
+test("deterministic generated records for every supported delimiter agree across newline styles", () => {
   let seed = 0x4d415249;
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -87,11 +87,12 @@ test("deterministic generated CSV and TSV records agree across newline styles", 
   };
   const values = [
     "", "plain", "000123", "03-04", "1E10", "TRUE", "NULL",
-    "comma,value", "tab\tvalue", 'quote"value', "line\nfeed",
+    "comma,value", "tab\tvalue", "semicolon;value", "pipe|value", 'quote"value', "line\nfeed",
     "line\rfeed", "line\r\npair", " leading", "trailing ", "=SUM(A1:A2)",
   ];
 
-  for (const delimiter of [",", "\t"]) {
+  const filenames = new Map([[",", "generated.csv"], ["\t", "generated.tsv"], [";", "generated.csv"], ["|", "generated.psv"]]);
+  for (const delimiter of Engine.supportedDelimiters().map((definition) => definition.value)) {
     for (const newline of ["\n", "\r\n", "\r"]) {
       const expected = Array.from({ length: 40 }, () => (
         Array.from({ length: 8 }, () => values[Math.floor(random() * values.length)])
@@ -101,7 +102,7 @@ test("deterministic generated CSV and TSV records agree across newline styles", 
         quoteFlags: cells.map((_value, columnIndex) => (rowIndex + columnIndex) % 5 === 0),
       }, delimiter)).join(newline) + newline;
       const documentModel = open(source, {
-        filename: delimiter === "\t" ? "generated.tsv" : "generated.csv",
+        filename: filenames.get(delimiter),
         delimiter,
         headerMode: false,
       });

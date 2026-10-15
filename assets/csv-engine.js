@@ -1,5 +1,5 @@
 /*
- * Marin CSV preservation engine (CSV-4).
+ * Marin CSV preservation engine (CSV-5).
  *
  * The engine treats every field as text. It keeps the original bytes so an
  * untouched document downloads byte-for-byte, and it keeps each original row's
@@ -14,7 +14,38 @@
   "use strict";
 
   const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf]);
-  const VALID_DELIMITERS = new Set([",", "\t"]);
+  const DELIMITER_DEFINITIONS = Object.freeze({
+    ",": Object.freeze({
+      value: ",",
+      name: "Comma",
+      label: "Comma (,)",
+      mimeType: "text/csv;charset=utf-8",
+      filenameExtensions: Object.freeze([".csv"]),
+    }),
+    "\t": Object.freeze({
+      value: "\t",
+      name: "Tab",
+      label: "Tab",
+      mimeType: "text/tab-separated-values;charset=utf-8",
+      filenameExtensions: Object.freeze([".tsv"]),
+    }),
+    ";": Object.freeze({
+      value: ";",
+      name: "Semicolon",
+      label: "Semicolon (;)",
+      mimeType: "text/plain;charset=utf-8",
+      filenameExtensions: Object.freeze([]),
+    }),
+    "|": Object.freeze({
+      value: "|",
+      name: "Pipe",
+      label: "Pipe (|)",
+      mimeType: "text/plain;charset=utf-8",
+      filenameExtensions: Object.freeze([".psv"]),
+    }),
+  });
+  const DELIMITER_PRIORITY = Object.freeze([",", "\t", ";", "|"]);
+  const VALID_DELIMITERS = new Set(DELIMITER_PRIORITY);
   const VALID_NEWLINES = new Set(["\r\n", "\n", "\r"]);
 
   class CsvError extends Error {
@@ -28,9 +59,29 @@
 
   function requireDelimiter(value) {
     if (!VALID_DELIMITERS.has(value)) {
-      throw new CsvError("UNSUPPORTED_DELIMITER", "Marin CSV supports comma- and tab-delimited files.", { delimiter: value });
+      throw new CsvError(
+        "UNSUPPORTED_DELIMITER",
+        "Marin CSV supports comma-, tab-, semicolon-, and pipe-delimited text files.",
+        { delimiter: value },
+      );
     }
     return value;
+  }
+
+  function delimiterDefinition(value) {
+    return DELIMITER_DEFINITIONS[requireDelimiter(value)];
+  }
+
+  function delimiterName(value) {
+    return delimiterDefinition(value).name;
+  }
+
+  function delimiterMimeType(value) {
+    return delimiterDefinition(value).mimeType;
+  }
+
+  function supportedDelimiters() {
+    return DELIMITER_PRIORITY.map((value) => ({ ...DELIMITER_DEFINITIONS[value] }));
   }
 
   function toUint8Array(value) {
@@ -497,40 +548,133 @@
     try {
       parsed = scanDelimited(text.slice(0, 512 * 1024), delimiter, { strict: false });
     } catch {
-      return -Infinity;
+      return {
+        delimiter,
+        score: -Infinity,
+        commonWidth: 0,
+        commonCount: 0,
+        sampleRows: 0,
+        warningCount: 0,
+      };
     }
     const widths = parsed.rows.slice(0, 50).map((row) => row.cells.length);
-    if (!widths.length) return 0;
+    if (!widths.length) {
+      return {
+        delimiter,
+        score: 0,
+        commonWidth: 0,
+        commonCount: 0,
+        sampleRows: 0,
+        warningCount: parsed.warnings.length,
+      };
+    }
     const common = mode(widths);
-    const multiColumn = Number(common.value || 0) > 1 ? 1000 : 0;
-    return multiColumn + common.count * 20 + Number(common.value || 0) - parsed.warnings.length * 5;
+    const commonWidth = Number(common.value || 0);
+    const commonCount = Number(common.count || 0);
+    const multiColumn = commonWidth > 1 ? 1000 : 0;
+    return {
+      delimiter,
+      score: multiColumn + commonCount * 20 + commonWidth - parsed.warnings.length * 5,
+      commonWidth,
+      commonCount,
+      sampleRows: widths.length,
+      warningCount: parsed.warnings.length,
+    };
+  }
+
+  function delimiterExtensionHint(filename = "") {
+    const lower = String(filename).toLowerCase();
+    if (lower.endsWith(".tsv")) return "\t";
+    if (lower.endsWith(".psv")) return "|";
+    return null;
+  }
+
+  function detectDelimiterDetails(text, filename = "") {
+    const extensionHint = delimiterExtensionHint(filename);
+    const candidates = DELIMITER_PRIORITY.map((delimiter, priority) => ({
+      ...delimiterScore(text, delimiter),
+      priority,
+      extensionMatch: delimiter === extensionHint,
+    }));
+    candidates.sort((left, right) => (
+      right.score - left.score
+      || Number(right.extensionMatch) - Number(left.extensionMatch)
+      || left.priority - right.priority
+    ));
+    const selected = candidates[0];
+    const alternative = candidates[1] || null;
+    const ambiguous = Boolean(
+      alternative
+      && selected.commonWidth > 1
+      && alternative.commonWidth > 1
+      && selected.score - alternative.score <= 25
+    );
+    return {
+      delimiter: selected.delimiter,
+      delimiterName: delimiterName(selected.delimiter),
+      ambiguous,
+      singleColumn: selected.commonWidth <= 1,
+      extensionHint,
+      candidates: candidates.map((candidate) => ({
+        delimiter: candidate.delimiter,
+        delimiterName: delimiterName(candidate.delimiter),
+        score: candidate.score,
+        commonWidth: candidate.commonWidth,
+        commonCount: candidate.commonCount,
+        sampleRows: candidate.sampleRows,
+        warningCount: candidate.warningCount,
+        extensionMatch: candidate.extensionMatch,
+      })),
+    };
   }
 
   function detectDelimiter(text, filename = "") {
-    const lower = String(filename).toLowerCase();
-    const commaScore = delimiterScore(text, ",");
-    const tabScore = delimiterScore(text, "\t");
-    if (tabScore > commaScore) return "\t";
-    if (commaScore > tabScore) return ",";
-    return lower.endsWith(".tsv") ? "\t" : ",";
+    return detectDelimiterDetails(text, filename).delimiter;
+  }
+
+  function appendDelimiterWarnings(warnings, rows, delimiter, detection, singleColumnOverride) {
+    if (detection?.ambiguous) {
+      const alternative = detection.candidates.find((candidate) => candidate.delimiter !== delimiter);
+      warnings.push({
+        code: "AMBIGUOUS_DELIMITER",
+        message: `Check the delimiter. This file can be interpreted as both ${delimiterName(delimiter)}- and ${alternative?.delimiterName || "another"}-delimited text. Marin CSV selected ${delimiterName(delimiter)}.`,
+      });
+    }
+    const singleColumn = typeof singleColumnOverride === "boolean"
+      ? singleColumnOverride
+      : rows.length > 0 && rows.every((row) => row.cells.length <= 1);
+    if (singleColumn) {
+      warnings.push({
+        code: "SINGLE_COLUMN",
+        message: `Only one column was found using the ${delimiterName(delimiter)} delimiter. If this is unexpected, choose another delimiter before editing.`,
+      });
+    }
   }
 
   function profileBytes(bytes, options = {}) {
     const decoded = decodeUtf8(bytes);
     const filename = options.filename || "data.csv";
-    const delimiter = options.delimiter && options.delimiter !== "auto"
-      ? requireDelimiter(options.delimiter)
-      : detectDelimiter(decoded.text, filename);
+    const explicitDelimiter = options.delimiter && options.delimiter !== "auto";
+    const detection = explicitDelimiter ? null : detectDelimiterDetails(decoded.text, filename);
+    const delimiter = explicitDelimiter ? requireDelimiter(options.delimiter) : detection.delimiter;
     const profile = profileDelimited(decoded.text, delimiter, {
       strict: options.strict !== false,
       previewRowLimit: options.previewRowLimit,
       warningLimit: options.warningLimit,
     });
+    appendDelimiterWarnings(
+      profile.warnings,
+      profile.previewRows,
+      delimiter,
+      detection,
+      profile.totalRows > 0 && profile.maxColumns <= 1,
+    );
     return {
       filename,
       originalBytes: decoded.bytes,
       originalText: decoded.text,
       delimiter,
+      delimiterDetection: detection,
       bom: decoded.bom,
       newline: dominantNewline(profile.newlineCounts),
       ...profile,
@@ -722,12 +866,13 @@
     static fromBytes(bytes, options = {}) {
       const decoded = decodeUtf8(bytes);
       const filename = options.filename || "data.csv";
-      const delimiter = options.delimiter && options.delimiter !== "auto"
-        ? requireDelimiter(options.delimiter)
-        : detectDelimiter(decoded.text, filename);
+      const explicitDelimiter = options.delimiter && options.delimiter !== "auto";
+      const detection = explicitDelimiter ? null : detectDelimiterDetails(decoded.text, filename);
+      const delimiter = explicitDelimiter ? requireDelimiter(options.delimiter) : detection.delimiter;
       const scanned = scanDelimited(decoded.text, delimiter, { strict: true });
       const parserValidation = validateWithPapa(decoded.text, delimiter, scanned.rows, options.papa);
       const warnings = scanned.warnings.slice();
+      appendDelimiterWarnings(warnings, scanned.rows, delimiter, detection);
       if (parserValidation.available && !parserValidation.matched) {
         warnings.push({
           code: "PARSER_DISAGREEMENT",
@@ -909,7 +1054,7 @@
     markDownloaded() {
       this.lastDownloadedIndex = this.historyIndex;
       this.downloadCount += 1;
-      this._emitRecovery({ type: "download-state" }, "Download CSV");
+      this._emitRecovery({ type: "download-state" }, "Download file");
     }
 
     _snapshotRows(indexes) {
@@ -1299,7 +1444,7 @@
       return {
         filename: this.filename,
         delimiter: this.delimiter,
-        delimiterName: this.delimiter === "\t" ? "Tab" : "Comma",
+        delimiterName: delimiterName(this.delimiter),
         bom: this.bom,
         encoding: "UTF-8",
         newline: this.newline,
@@ -1624,7 +1769,7 @@
       return {
         filename: this.filename,
         delimiter: this.delimiter,
-        delimiterName: this.delimiter === "\t" ? "Tab" : "Comma",
+        delimiterName: delimiterName(this.delimiter),
         bom: this.bom,
         encoding: "UTF-8",
         newline: this.newline,
@@ -1665,6 +1810,10 @@
     columnLabel,
     decodeUtf8,
     detectDelimiter,
+    detectDelimiterDetails,
+    delimiterDefinition,
+    delimiterMimeType,
+    delimiterName,
     documentFromRecoverySnapshot,
     documentFromTransfer,
     encodeUtf8,
@@ -1674,7 +1823,8 @@
     scanDelimited,
     serializeField,
     serializeRow,
+    supportedDelimiters,
     validateWithPapa,
-    version: "0.4.0-csv4",
+    version: "0.5.0-csv5",
   };
 });

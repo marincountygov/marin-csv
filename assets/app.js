@@ -1,4 +1,4 @@
-/* Marin CSV CSV-4 application workflow. Shared shell behavior remains in vendor/marinos. */
+/* Marin CSV CSV-6 application workflow. Shared shell behavior remains in vendor/marinos. */
 (() => {
   "use strict";
 
@@ -58,6 +58,9 @@
       headersButton: get("csv-headers-button"),
       filterInput: get("csv-filter-input"),
       filterHelp: get("csv-filter-help"),
+      valueFilter: get("csv-value-filter"),
+      valueFilterLabel: get("csv-value-filter-label"),
+      clearValueFilterButton: get("csv-clear-value-filter"),
       headerMode: get("csv-header-mode"),
       delimiter: get("csv-delimiter-select"),
       metadata: get("csv-file-metadata"),
@@ -114,7 +117,29 @@
       deleteLocalButton: get("csv-delete-local-button"),
       resumeLocalButton: get("csv-resume-local-button"),
       recoveryStatus: get("csv-recovery-status"),
+      contextMenu: get("csv-cell-context-menu"),
+      contextEdit: get("csv-context-edit"),
+      contextClear: get("csv-context-clear"),
+      contextFilter: get("csv-context-filter"),
+      contextDeleteRow: get("csv-context-delete-row"),
+      contextDeleteColumn: get("csv-context-delete-column"),
     };
+
+    function initializeDelimiterOptions() {
+      const current = elements.delimiter.value;
+      const definitions = Engine.supportedDelimiters();
+      elements.delimiter.replaceChildren(...definitions.map((definition) => {
+        const option = document.createElement("option");
+        option.value = definition.value;
+        option.textContent = definition.label;
+        return option;
+      }));
+      if (definitions.some((definition) => definition.value === current)) {
+        elements.delimiter.value = current;
+      }
+    }
+
+    initializeDelimiterOptions();
 
     const state = {
       document: null,
@@ -143,6 +168,8 @@
       recoveryConflict: null,
       recentDocuments: [],
       recoveryAnnouncementCode: null,
+      contextMenuTarget: null,
+      valueFilter: null,
     };
 
     let recoveryCoordinator = null;
@@ -179,6 +206,164 @@
       });
     }
 
+    function contextMenuItems() {
+      return [
+        elements.contextEdit,
+        elements.contextClear,
+        elements.contextFilter,
+        elements.contextDeleteRow,
+        elements.contextDeleteColumn,
+      ].filter(Boolean);
+    }
+
+    function resolveContextTarget(target = state.contextMenuTarget) {
+      if (!target || !state.document) return null;
+      const rowIndex = state.document.rows.findIndex((row) => row.id === target.rowId);
+      if (rowIndex < 0 || target.columnIndex < 0 || target.columnIndex >= state.document.columnCount) return null;
+      return {
+        ...target,
+        rowIndex,
+        value: state.document.getCell(rowIndex, target.columnIndex),
+      };
+    }
+
+    function targetFromActiveCell() {
+      const active = state.grid?.getActiveCell?.();
+      const row = active && state.document?.rows?.[active.rowIndex];
+      if (!active || !row) return null;
+      return {
+        rowId: row.id,
+        rowIndex: active.rowIndex,
+        columnIndex: active.columnIndex,
+        value: state.document.getCell(active.rowIndex, active.columnIndex),
+        columnName: state.document.getHeaders()[active.columnIndex]
+          || `Column ${Engine.columnLabel(active.columnIndex)}`,
+      };
+    }
+
+    function contextCapabilities(target) {
+      const resolved = resolveContextTarget(target);
+      const hasDocument = Boolean(resolved && state.document && !state.blocked && !state.busy);
+      const readOnly = Boolean(state.document?.readOnly || state.policy.readOnly);
+      const editable = hasDocument && !readOnly;
+      const filterable = hasDocument && state.policy.mode === "standard";
+      return {
+        resolved,
+        edit: editable,
+        clear: editable && resolved?.value !== "",
+        filter: filterable,
+        deleteRow: editable && !(state.document?.headerMode && resolved?.rowIndex === 0),
+        deleteColumn: editable && state.document?.columnCount > 1,
+      };
+    }
+
+    function setContextItemState(button, enabled) {
+      if (!button) return;
+      button.disabled = !enabled;
+      button.setAttribute("aria-disabled", String(!enabled));
+    }
+
+    function positionContextMenu(target) {
+      const menu = elements.contextMenu;
+      const margin = 8;
+      menu.style.left = "0px";
+      menu.style.top = "0px";
+      menu.hidden = false;
+      const rect = menu.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+      const requestedX = Number.isFinite(Number(target.clientX)) ? Number(target.clientX) : margin;
+      const requestedY = Number.isFinite(Number(target.clientY)) ? Number(target.clientY) : margin;
+      const left = Math.max(margin, Math.min(requestedX, viewportWidth - rect.width - margin));
+      const top = Math.max(margin, Math.min(requestedY, viewportHeight - rect.height - margin));
+      menu.style.left = `${Math.round(left)}px`;
+      menu.style.top = `${Math.round(top)}px`;
+    }
+
+    function closeCellContextMenu(options = {}) {
+      if (!elements.contextMenu || elements.contextMenu.hidden) return false;
+      const target = state.contextMenuTarget;
+      elements.contextMenu.hidden = true;
+      elements.contextMenu.style.removeProperty("left");
+      elements.contextMenu.style.removeProperty("top");
+      state.contextMenuTarget = null;
+      if (options.restoreFocus !== false && target) {
+        const resolved = resolveContextTarget(target);
+        if (resolved) state.grid?.requestFocus?.(resolved.rowIndex, resolved.columnIndex);
+      }
+      return true;
+    }
+
+    function openCellContextMenu(target) {
+      const capabilities = contextCapabilities(target);
+      if (!capabilities.edit && !capabilities.clear && !capabilities.filter
+          && !capabilities.deleteRow && !capabilities.deleteColumn) return false;
+      closeCellContextMenu({ restoreFocus: false });
+      elements.moreMenu.open = false;
+      state.contextMenuTarget = { ...target };
+      setContextItemState(elements.contextEdit, capabilities.edit);
+      setContextItemState(elements.contextClear, capabilities.clear);
+      setContextItemState(elements.contextFilter, capabilities.filter);
+      setContextItemState(elements.contextDeleteRow, capabilities.deleteRow);
+      setContextItemState(elements.contextDeleteColumn, capabilities.deleteColumn);
+      positionContextMenu(target);
+      const firstEnabled = contextMenuItems().find((button) => !button.disabled);
+      firstEnabled?.focus({ preventScroll: true });
+      window.requestAnimationFrame(() => {
+        if (!elements.contextMenu.hidden && !elements.contextMenu.contains(document.activeElement)) {
+          firstEnabled?.focus({ preventScroll: true });
+        }
+      });
+      return true;
+    }
+
+    function compactFilterValue(value) {
+      if (value === "") return "(blank)";
+      const singleLine = String(value).replace(/\r\n|\r|\n/g, " ↵ ");
+      return singleLine.length > 72 ? `${singleLine.slice(0, 69)}…` : singleLine;
+    }
+
+    function updateValueFilterIndicator() {
+      const filter = state.valueFilter;
+      const enabled = Boolean(filter && state.document && state.policy.mode === "standard"
+        && filter.columnIndex >= 0 && filter.columnIndex < state.document.columnCount);
+      if (filter && !enabled) state.valueFilter = null;
+      elements.valueFilter.hidden = !enabled;
+      if (!enabled) {
+        elements.valueFilterLabel.textContent = "";
+        elements.valueFilterLabel.removeAttribute("title");
+        elements.clearValueFilterButton.removeAttribute("aria-label");
+        return;
+      }
+      const header = state.document.getHeaders()[filter.columnIndex]
+        || `Column ${Engine.columnLabel(filter.columnIndex)}`;
+      const visibleValue = compactFilterValue(filter.value);
+      elements.valueFilterLabel.textContent = `${header} = ${visibleValue}`;
+      elements.valueFilterLabel.title = String(filter.value);
+      elements.clearValueFilterButton.setAttribute(
+        "aria-label",
+        `Clear exact-value filter for ${header}: ${filter.value === "" ? "blank" : String(filter.value)}`,
+      );
+    }
+
+    function applyValueFilter(columnIndex, value) {
+      if (state.policy.mode !== "standard" || !state.grid?.setValueFilter?.(columnIndex, value)) return false;
+      state.valueFilter = { columnIndex, value: String(value ?? "") };
+      updateValueFilterIndicator();
+      scheduleWorkspaceLayout();
+      return true;
+    }
+
+    function clearValueFilter(options = {}) {
+      const hadFilter = Boolean(state.valueFilter);
+      state.valueFilter = null;
+      state.grid?.clearValueFilter?.();
+      updateValueFilterIndicator();
+      scheduleWorkspaceLayout();
+      if (hadFilter && options.announce !== false) announce("Cleared the exact-value filter.");
+      return hadFilter;
+    }
+
     function recoveryStatusLabel(status = state.recoveryStatus) {
       switch (status?.code) {
         case Recovery.STATUS.WAITING: return "Changes waiting to save";
@@ -206,15 +391,15 @@
 
       const code = state.recoveryStatus.code;
       const notices = {
-        [Recovery.STATUS.OFF]: "Local recovery is off for this open document. Refreshing can lose changes unless you resume recovery or download the CSV.",
-        [Recovery.STATUS.UNAVAILABLE]: "Local recovery is unavailable in this browser. Continue editing only if you download the CSV before leaving.",
-        [Recovery.STATUS.FULL]: "Browser storage is full. The last valid recovery copy remains, but newer changes are not saved locally. Download the CSV now.",
+        [Recovery.STATUS.OFF]: "Local recovery is off for this open document. Refreshing can lose changes unless you resume recovery or download the file.",
+        [Recovery.STATUS.UNAVAILABLE]: "Local recovery is unavailable in this browser. Continue editing only if you download the file before leaving.",
+        [Recovery.STATUS.FULL]: "Browser storage is full. The last valid recovery copy remains, but newer changes are not saved locally. Download the file now.",
         [Recovery.STATUS.CONFLICT]: "This local document is open or changed in another tab. This tab cannot overwrite that recovery copy.",
         [Recovery.STATUS.DEGRADED]: "Marin CSV recovered the last valid local revision, but newer recovery data could not be applied. The document is read-only; create an independent copy to continue editing.",
         [Recovery.STATUS.BLOCKED]: "Another Marin CSV tab is blocking a local recovery database update. Close or refresh the other tab to continue local recovery.",
         [Recovery.STATUS.RELOAD_REQUIRED]: "Marin CSV was updated in another tab. Reload this tab before continuing local recovery.",
         [Recovery.STATUS.UNSUPPORTED]: "This local copy cannot be opened by this version of Marin CSV. It has not been deleted.",
-        [Recovery.STATUS.ERROR]: "Changes are not saved locally. The last valid recovery copy remains available; download the CSV before leaving.",
+        [Recovery.STATUS.ERROR]: "Changes are not saved locally. The last valid recovery copy remains available; download the file before leaving.",
       };
       const message = notices[code] || "";
       elements.recoveryNotice.hidden = !message;
@@ -387,6 +572,8 @@
     }
 
     async function displayRecoveredDocument(result, options = {}) {
+      closeCellContextMenu({ restoreFocus: false });
+      clearValueFilter({ announce: false });
       state.document = result.document;
       state.policy = recoveredPolicy(result.document, result.policyMode);
       state.pageIndex = 0;
@@ -468,8 +655,8 @@
       confirmAction(
         `Delete local copy of ${filename || "this document"}?`,
         documentId === recoveryCoordinator.documentId
-          ? "The document will remain open, but refresh recovery will stop until you explicitly resume it. Download the CSV first if you need a file copy."
-          : "This removes only the browser-local recovery copy. Any downloaded CSV files are unchanged.",
+          ? "The document will remain open, but refresh recovery will stop until you explicitly resume it. Download the file first if you need a separate copy."
+          : "This removes only the browser-local recovery copy. Any downloaded files are unchanged.",
         "Delete local copy",
         async () => {
           try {
@@ -621,6 +808,7 @@
     }
 
     function setWorkspaceMode(mode, options = {}) {
+      closeCellContextMenu({ restoreFocus: false });
       const nextMode = Workspace.normalizeMode(mode);
       if (nextMode === Workspace.MODES.EXPANDED
           && (!state.document || elements.editorView.hidden || state.route !== "start")) {
@@ -676,8 +864,14 @@
         state.layoutObserver = new ResizeObserver(() => scheduleWorkspaceLayout());
         observed.forEach((element) => state.layoutObserver.observe(element));
       }
-      window.addEventListener("resize", scheduleWorkspaceLayout, { passive: true });
-      window.visualViewport?.addEventListener?.("resize", scheduleWorkspaceLayout, { passive: true });
+      window.addEventListener("resize", () => {
+        closeCellContextMenu({ restoreFocus: false });
+        scheduleWorkspaceLayout();
+      }, { passive: true });
+      window.visualViewport?.addEventListener?.("resize", () => {
+        closeCellContextMenu({ restoreFocus: false });
+        scheduleWorkspaceLayout();
+      }, { passive: true });
       window.addEventListener("hashchange", syncRouteState);
       elements.fileDetails.addEventListener("toggle", scheduleWorkspaceLayout);
       elements.warnings.addEventListener("toggle", scheduleWorkspaceLayout);
@@ -690,6 +884,7 @@
     }
 
     async function beginOperation(title, detail = "") {
+      closeCellContextMenu({ restoreFocus: false });
       state.busy = true;
       elements.workspace.setAttribute("aria-busy", "true");
       elements.grid.setAttribute("aria-busy", "true");
@@ -729,6 +924,8 @@
     }
 
     function resetDocumentState(options = {}) {
+      closeCellContextMenu({ restoreFocus: false });
+      clearValueFilter({ announce: false });
       setWorkspaceMode(Workspace.MODES.NORMAL, { announce: false });
       if (options.detachRecovery !== false) recoveryCoordinator.detachCurrent({ releaseLease: true }).catch(() => {});
       state.grid?.destroy?.();
@@ -813,8 +1010,17 @@
         onRangeChange(selection) {
           announceSelection(selection);
         },
+        onContextMenu(target) {
+          return openCellContextMenu(target);
+        },
+        onContextDismiss() {
+          closeCellContextMenu({ restoreFocus: false });
+        },
         onReady(page) {
           state.pageIndex = page?.pageIndex || 0;
+          if (state.valueFilter && state.policy.mode === "standard") {
+            state.grid?.setValueFilter?.(state.valueFilter.columnIndex, state.valueFilter.value);
+          }
           updatePager();
           scheduleWorkspaceLayout();
         },
@@ -880,6 +1086,7 @@
 
     async function renderDocument(focus = null) {
       if (!state.grid || !state.document) return;
+      closeCellContextMenu({ restoreFocus: false });
       applyWorkspaceLayout({ redraw: false });
       const ready = state.grid.setDocument(state.document, gridOptions());
       if (focus) {
@@ -909,6 +1116,8 @@
           headerMode: options.headerMode !== false,
           papa: window.Papa,
         }, ({ message }) => updateOperation("Opening file", message), window);
+        closeCellContextMenu({ restoreFocus: false });
+        clearValueFilter({ announce: false });
         state.document = result.document;
         state.policy = result.policy;
         state.pageIndex = 0;
@@ -990,10 +1199,12 @@
       );
     }
 
-    function confirmAction(title, message, acceptLabel, action) {
+    function confirmAction(title, message, acceptLabel, action, options = {}) {
       if (state.busy) return;
+      closeCellContextMenu({ restoreFocus: false });
       state.pendingConfirmation = action;
-      state.confirmationReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      state.confirmationReturnFocus = options.returnFocus
+        || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
       elements.confirmTitle.textContent = title;
       elements.confirmMessage.textContent = message;
       elements.confirmAccept.textContent = acceptLabel;
@@ -1008,6 +1219,7 @@
       state.pendingConfirmation = null;
       state.confirmationReturnFocus = null;
       if (elements.confirmDialog.returnValue === "accept" && typeof action === "function") action();
+      else if (typeof returnFocus === "function") returnFocus();
       else returnFocus?.focus?.();
     });
 
@@ -1088,7 +1300,7 @@
       elements.sampleButton.disabled = state.busy || !state.dependenciesReady;
       elements.openAnotherButton.disabled = state.busy;
       elements.downloadButton.disabled = blocked || state.busy;
-      elements.downloadLabel.textContent = readOnly ? "Download exact copy" : "Download CSV";
+      elements.downloadLabel.textContent = readOnly ? "Download exact copy" : "Download file";
       elements.undoButton.disabled = editDisabled || !doc?.canUndo;
       elements.redoButton.disabled = editDisabled || !doc?.canRedo;
       elements.addRowButton.disabled = editDisabled;
@@ -1106,13 +1318,13 @@
       const filterDisabled = blocked || state.busy || state.policy.mode !== "standard";
       elements.filterInput.disabled = filterDisabled;
       elements.filterHelp.textContent = state.policy.mode === "standard"
-        ? "Filtering changes only the current view."
+        ? "Text and exact-value filters change only the current view."
         : "Filtering is unavailable in paged and read-only preview modes.";
       elements.gridHelp.textContent = state.policy.mode === "preview"
         ? "Read-only preview. Use the grid to review the retained rows. Editing, sorting, filtering, and paging through omitted rows are unavailable; Download exact copy preserves every original byte."
         : state.policy.mode === "paged"
-          ? "Double-click or press Enter on a cell to edit. Enter saves a single-line field; Alt+Enter adds a line. In a multiline field, Enter adds a line and Shift+Enter saves. Use the page controls to move through the file. Sorting and filtering are unavailable."
-          : "Double-click or press Enter on a cell to edit. Enter saves a single-line field; Alt+Enter adds a line. In a multiline field, Enter adds a line and Shift+Enter saves. Sorting and filtering change only the view, not the saved row order.";
+          ? "Double-click or press Enter on a cell to edit. Right-click, long-press, or press Shift+F10 for field actions. Enter saves a single-line field; Alt+Enter adds a line. In a multiline field, Enter adds a line and Shift+Enter saves. Use the page controls to move through the file. Sorting and filtering are unavailable."
+          : "Double-click or press Enter on a cell to edit. Right-click, long-press, or press Shift+F10 for field actions. Enter saves a single-line field; Alt+Enter adds a line. In a multiline field, Enter adds a line and Shift+Enter saves. Sorting and filtering change only the view, not the saved row order.";
       elements.grid.inert = Boolean(state.blocked || state.busy);
       elements.workspaceToggle.disabled = !doc || state.busy;
       updateRecoveryControls();
@@ -1149,6 +1361,7 @@
       updateMetadata();
       updateWarnings();
       updateSelectors();
+      updateValueFilterIndicator();
       updateModeNotice();
       updateLargeModeNotice();
       updateControls();
@@ -1221,11 +1434,7 @@
         await nextPaint();
         const bytes = state.document.exportBytes();
         const filename = state.document.downloadName();
-        const blob = new Blob([bytes], {
-          type: state.document.delimiter === "\t"
-            ? "text/tab-separated-values;charset=utf-8"
-            : "text/csv;charset=utf-8",
-        });
+        const blob = new Blob([bytes], { type: Engine.delimiterMimeType(state.document.delimiter) });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
@@ -1277,23 +1486,39 @@
       });
     }
 
-    function deleteRow() {
-      const active = state.grid.getActiveCell?.();
-      if (!active || !state.document.rows[active.rowIndex]) return;
+    function deleteRowTarget(target) {
+      const resolved = resolveContextTarget(target);
+      if (!resolved || !state.document.rows[resolved.rowIndex]
+          || (state.document.headerMode && resolved.rowIndex === 0)) return;
+      const returnFocus = () => state.grid?.requestFocus?.(resolved.rowIndex, resolved.columnIndex);
       confirmAction(
-        `Delete file row ${active.rowIndex + 1}?`,
+        `Delete file row ${resolved.rowIndex + 1}?`,
         "The row will be removed from the downloaded file. You can undo this action while this file remains open.",
         "Delete row",
-        () => runStructuralChange("Deleting row", `Removing file row ${active.rowIndex + 1}`, () => {
-          state.document.deleteRow(active.rowIndex);
-          state.activeCell = null;
-        }).then(() => announce(`Deleted file row ${active.rowIndex + 1}.`)),
+        () => {
+          const current = resolveContextTarget(target);
+          if (!current) {
+            announce("The selected row is no longer available.");
+            return;
+          }
+          runStructuralChange("Deleting row", `Removing file row ${current.rowIndex + 1}`, () => {
+            state.document.deleteRow(current.rowIndex);
+            state.activeCell = null;
+          }).then(() => announce(`Deleted file row ${current.rowIndex + 1}.`));
+        },
+        { returnFocus },
       );
+    }
+
+    function deleteRow() {
+      const target = targetFromActiveCell();
+      if (target) deleteRowTarget(target);
     }
 
     function addColumn() {
       const active = state.grid.getActiveCell?.();
       const index = active ? active.columnIndex + 1 : state.document.columnCount;
+      clearValueFilter({ announce: false });
       runStructuralChange("Adding column", "Updating every row in the document", () => {
         const inserted = state.document.addColumn(index);
         state.activeCell = {
@@ -1306,19 +1531,68 @@
       }).then(() => announce(`Added column ${Engine.columnLabel(index)}.`));
     }
 
-    function deleteColumn() {
-      const active = state.grid.getActiveCell?.();
-      if (!active || state.document.columnCount <= 1) return;
-      const label = Engine.columnLabel(active.columnIndex);
+    function deleteColumnTarget(target) {
+      const resolved = resolveContextTarget(target);
+      if (!resolved || state.document.columnCount <= 1) return;
+      const label = Engine.columnLabel(resolved.columnIndex);
+      const returnFocus = () => state.grid?.requestFocus?.(resolved.rowIndex, resolved.columnIndex);
       confirmAction(
         `Delete column ${label}?`,
         "The column and all of its values will be removed from the downloaded file. You can undo this action while this file remains open.",
         "Delete column",
-        () => runStructuralChange("Deleting column", `Removing column ${label} from every row`, () => {
-          state.document.deleteColumn(active.columnIndex);
-          state.activeCell = null;
-        }).then(() => announce(`Deleted column ${label}.`)),
+        () => {
+          const current = resolveContextTarget(target);
+          if (!current || state.document.columnCount <= 1) {
+            announce("The selected column is no longer available.");
+            return;
+          }
+          runStructuralChange("Deleting column", `Removing column ${label} from every row`, () => {
+            clearValueFilter({ announce: false });
+            state.document.deleteColumn(current.columnIndex);
+            state.activeCell = null;
+          }).then(() => announce(`Deleted column ${label}.`));
+        },
+        { returnFocus },
       );
+    }
+
+    function deleteColumn() {
+      const target = targetFromActiveCell();
+      if (target) deleteColumnTarget(target);
+    }
+
+    async function clearFieldTarget(target) {
+      const resolved = resolveContextTarget(target);
+      if (!resolved || state.busy || state.document?.readOnly || resolved.value === "") return;
+      if (!state.document.setCell(resolved.rowIndex, resolved.columnIndex, "", "Clear field")) return;
+      await updateAfterChange(true, { rowIndex: resolved.rowIndex, columnIndex: resolved.columnIndex });
+      announce(`Cleared file row ${resolved.rowIndex + 1}, column ${Engine.columnLabel(resolved.columnIndex)}.`);
+    }
+
+    function editFieldTarget(target) {
+      const resolved = resolveContextTarget(target);
+      if (!resolved || state.busy || state.document?.readOnly) return false;
+      return state.grid?.editCell?.(resolved.rowIndex, resolved.columnIndex) === true;
+    }
+
+    function filterTarget(target) {
+      const resolved = resolveContextTarget(target);
+      if (!resolved || !applyValueFilter(resolved.columnIndex, resolved.value)) return false;
+      const label = resolved.columnName || `Column ${Engine.columnLabel(resolved.columnIndex)}`;
+      announce(`Filtered ${label} to the selected exact value.`);
+      state.grid?.requestFocus?.(resolved.rowIndex, resolved.columnIndex);
+      return true;
+    }
+
+    function runContextAction(action) {
+      const target = state.contextMenuTarget ? { ...state.contextMenuTarget } : null;
+      if (!target) return;
+      closeCellContextMenu({ restoreFocus: false });
+      if (action === "edit") editFieldTarget(target);
+      else if (action === "clear") clearFieldTarget(target);
+      else if (action === "filter") filterTarget(target);
+      else if (action === "delete-row") deleteRowTarget(target);
+      else if (action === "delete-column") deleteColumnTarget(target);
     }
 
     function buildHeaderFields() {
@@ -1428,8 +1702,10 @@
     });
     elements.undoButton.addEventListener("click", async () => {
       if (state.busy) return;
+      const previousColumnCount = state.document.columnCount;
       const label = state.document.undo();
       if (label) {
+        if (state.document.columnCount !== previousColumnCount) clearValueFilter({ announce: false });
         state.activeCell = null;
         await beginOperation("Undoing change", label);
         try {
@@ -1442,8 +1718,10 @@
     });
     elements.redoButton.addEventListener("click", async () => {
       if (state.busy) return;
+      const previousColumnCount = state.document.columnCount;
       const label = state.document.redo();
       if (label) {
+        if (state.document.columnCount !== previousColumnCount) clearValueFilter({ announce: false });
         state.activeCell = null;
         await beginOperation("Redoing change", label);
         try {
@@ -1459,6 +1737,45 @@
     elements.addColumnButton.addEventListener("click", addColumn);
     elements.deleteColumnButton.addEventListener("click", deleteColumn);
     elements.filterInput.addEventListener("input", () => state.grid?.setFilter?.(elements.filterInput.value));
+    elements.clearValueFilterButton.addEventListener("click", () => clearValueFilter());
+    elements.contextMenu.addEventListener("click", (event) => {
+      const button = event.target.closest?.("button[data-context-action]");
+      if (!(button instanceof HTMLButtonElement) || button.disabled) return;
+      runContextAction(button.dataset.contextAction);
+    });
+    elements.contextMenu.addEventListener("keydown", (event) => {
+      const enabled = contextMenuItems().filter((button) => !button.disabled);
+      if (!enabled.length) return;
+      const current = enabled.indexOf(document.activeElement);
+      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        event.preventDefault();
+        let index = current < 0 ? 0 : current;
+        if (event.key === "ArrowDown") index = (index + 1) % enabled.length;
+        else if (event.key === "ArrowUp") index = (index - 1 + enabled.length) % enabled.length;
+        else if (event.key === "Home") index = 0;
+        else if (event.key === "End") index = enabled.length - 1;
+        enabled[index].focus();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeCellContextMenu({ restoreFocus: true });
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        const target = state.contextMenuTarget ? { ...state.contextMenuTarget } : null;
+        closeCellContextMenu({ restoreFocus: false });
+        const origin = target && document.querySelector(
+          `.tabulator-cell[data-document-row-index="${target.rowIndex}"][data-column-index="${target.columnIndex}"]`,
+        );
+        const focusable = [...document.querySelectorAll(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )].filter((element) => !element.hidden && element.getClientRects().length);
+        const originIndex = origin ? focusable.indexOf(origin) : -1;
+        const nextIndex = originIndex < 0
+          ? 0
+          : Math.max(0, Math.min(focusable.length - 1, originIndex + (event.shiftKey ? -1 : 1)));
+        focusable[nextIndex]?.focus?.();
+      }
+    });
     elements.headerMode.addEventListener("change", async () => {
       if (!state.document || state.busy) return;
       state.document.setHeaderMode(elements.headerMode.value === "headers");
@@ -1564,6 +1881,9 @@
       if (elements.moreMenu.open && !elements.moreMenu.contains(event.target)) {
         elements.moreMenu.open = false;
       }
+      if (!elements.contextMenu.hidden && !elements.contextMenu.contains(event.target)) {
+        closeCellContextMenu({ restoreFocus: false });
+      }
     });
 
     elements.moreMenu.addEventListener("click", (event) => {
@@ -1572,6 +1892,9 @@
         window.requestAnimationFrame(() => { elements.moreMenu.open = false; });
       }
     });
+    elements.moreMenu.addEventListener("toggle", () => {
+      if (elements.moreMenu.open) closeCellContextMenu({ restoreFocus: false });
+    });
 
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -1579,14 +1902,17 @@
       const priority = Workspace.escapePriority({
         mode: state.workspaceMode,
         dialogOpen: Boolean(document.querySelector("dialog[open]")),
-        transientOpen: elements.moreMenu.open,
+        transientOpen: elements.moreMenu.open || !elements.contextMenu.hidden,
         interactionActive: Boolean(active?.matches?.("input, textarea, select, [contenteditable='true']")
           || active?.closest?.(".tabulator-editing")),
       });
       if (priority === "transient") {
         event.preventDefault();
-        elements.moreMenu.open = false;
-        elements.moreMenu.querySelector("summary")?.focus?.();
+        if (!elements.contextMenu.hidden) closeCellContextMenu({ restoreFocus: true });
+        else {
+          elements.moreMenu.open = false;
+          elements.moreMenu.querySelector("summary")?.focus?.();
+        }
       } else if (priority === "collapse") {
         event.preventDefault();
         setWorkspaceMode(Workspace.MODES.NORMAL, { focusToggle: true });
