@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "status": "vendored",
+  "generatedBy": "scripts/vendor-dependencies.mjs",
+  "dependencies": {
+    "papaparse": {
+      "version": "5.7.0",
+      "installed": true,
+      "files": {
+        "papaparse.min.js": {
+          "bytes": 18874,
+          "sha256": "4d5d2d6e3282b66aafaa5e6de8ca3ae06f8d3440111ae99c6a30f6c00cfac33e"
+        },
+        "PAPAPARSE_LICENSE.txt": {
+          "bytes": 1079,
+          "sha256": "99aa68e4b42758b09828a46515f70369e5463458ab7a990189f641af2b8d9b4e"
+        }
+      }
+    },
+    "tabulator-tables": {
+      "version": "6.6.1",
+      "installed": true,
+      "files": {
+        "tabulator.min.js": {
+          "bytes": 454026,
+          "sha256": "5f945a0327dacb19e50e1abed0942d2563848bcf5220998df325afa74cce3c34"
+        },
+        "tabulator.min.css": {
+          "bytes": 28383,
+          "sha256": "ff598d8e961398e09a8e52ab21740e5ed952c84feebbdacec8f8a362dd3f73db"
+        },
+        "TABULATOR_LICENSE.txt": {
+          "bytes": 1082,
+          "sha256": "191a2ee554684e1064c897b432f0e1bc6dfa714ca045d3f6ea2cf692cbd398b7"
+        }
+      }
+    }
+  },
+  "files": {
+    "vendor-status.js": {
+      "bytes": 152,
+      "sha256": "3f5f6604ef20e2e5f8428f5ab0b72a251f7b2a2a4ca507774e31c2e6b49924ee"
+    }
+  }
+}

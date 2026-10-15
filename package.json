@@ -1,0 +1,17 @@
+{
+  "name": "marin-csv",
+  "version": "0.1.0-csv.4",
+  "private": true,
+  "description": "Local-browser CSV and TSV viewer and editor for MarinOS.",
+  "scripts": {
+    "vendor": "node scripts/vendor-dependencies.mjs",
+    "test": "node --test tests/test_csv_engine.js tests/test_csv2_engine.js tests/test_document_loader.js tests/test_large_file_policy.js tests/test_papa_integration.js tests/test_recovery_engine.js tests/test_recovery_store.js tests/test_recovery_coordinator.js tests/test_tabulator_adapter.js tests/test_workspace_state.js"
+  },
+  "devDependencies": {
+    "papaparse": "5.7.0",
+    "tabulator-tables": "6.6.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

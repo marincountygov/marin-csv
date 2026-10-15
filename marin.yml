@@ -1,0 +1,21 @@
+schema: 1
+
+project:
+  name: Marin CSV
+  repo: marin-csv
+  type: app
+  owner: County of Marin
+  audience: staff
+  status: alpha
+
+platform:
+  shell: 1.12.2
+
+deployment:
+  target: github-pages
+  url: https://marincountygov.github.io/marin-csv/
+
+ai:
+  used: false
+
+services: none

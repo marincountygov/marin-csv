@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <!-- BEGIN generated security meta: python3 scripts/sync-security-meta.py --write -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://marincountygov.github.io/marin-os/catalog.json https://marincountygov.github.io/marin-os/data/lighthouse.json https://marincountygov.github.io/marin-os/data/tech.json https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <!-- END generated security meta -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Marin CSV | County of Marin</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='10' fill='%23000'/%3E%3Cg fill='none' stroke='%23e5b53b' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round' transform='translate(9,9) scale(1.25)'%3E%3Cpath d='M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'/%3E%3Cpath d='M14 2v6h6M8 13h2M8 17h2M14 13h2M14 17h2'/%3E%3C/g%3E%3C/svg%3E">
+    <meta name="description" content="View and edit CSV and TSV files locally without automatic data conversion.">
+    <link rel="stylesheet" href="vendor/marinos/marinos.css">
+    <link rel="stylesheet" href="vendor/third-party/tabulator.min.css">
+    <link rel="stylesheet" href="assets/app.css">
+    <script src="vendor/marinos/marinos.js" defer></script>
+    <script src="vendor/third-party/papaparse.min.js" defer></script>
+    <script src="vendor/third-party/tabulator.min.js" defer></script>
+    <script src="vendor/third-party/vendor-status.js" defer></script>
+    <script src="assets/large-file-policy.js" defer></script>
+    <script src="assets/csv-engine.js" defer></script>
+    <script src="assets/document-loader.js" defer></script>
+    <script src="assets/recovery-store.js" defer></script>
+    <script src="assets/recovery-coordinator.js" defer></script>
+    <script src="assets/workspace-state.js" defer></script>
+    <script src="assets/tabulator-adapter.js" defer></script>
+    <script src="assets/app.js" defer></script>
+  </head>
+  <body>
+    <noscript>
+      <div class="container app-alert app-alert--warning">
+        JavaScript is required to open and edit CSV files in your browser.
+      </div>
+    </noscript>
+
+    <marin-os-banner></marin-os-banner>
+
+    <marin-app-header app-name="Marin CSV" app-description="View and edit CSV and TSV files locally without automatic data conversion.">
+      <template data-icon>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+          <path d="M14 2v6h6M8 13h2M8 17h2M14 13h2M14 17h2"/>
+        </svg>
+      </template>
+    </marin-app-header>
+
+    <main id="main" class="container app-main">
+      <section id="start" class="csv-workspace" data-tab-section="start" aria-labelledby="start-heading" aria-busy="false">
+        <div id="csv-operation-status" class="csv-operation-status" role="status" aria-live="polite" aria-atomic="true" hidden>
+          <progress id="csv-operation-progress" aria-label="Marin CSV operation in progress"></progress>
+          <div>
+            <strong id="csv-operation-title">Working</strong>
+            <span id="csv-operation-detail"></span>
+          </div>
+        </div>
+
+        <div id="csv-open-view" class="csv-open-view">
+          <div id="csv-open-error" class="app-alert app-alert--error csv-open-error" role="alert" tabindex="-1" hidden></div>
+
+          <div id="csv-drop-zone" class="csv-drop-zone">
+            <svg class="csv-drop-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3"/>
+            </svg>
+            <div>
+              <h2 id="start-heading">Open a CSV or TSV file</h2>
+              <p id="csv-drop-help">Drop a file anywhere on this page, or choose a file from your device.</p>
+              <div class="csv-open-actions">
+                <button id="csv-open-button" type="button" aria-describedby="csv-drop-help csv-local-note">Choose file</button>
+                <button id="csv-sample-button" type="button" class="secondary">Open sample</button>
+              </div>
+              <input id="csv-file-input" class="csv-visually-hidden" type="file" tabindex="-1" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+              <p id="csv-local-note" class="csv-local-note">Your file stays in this browser. Marin CSV does not upload its contents.</p>
+            </div>
+          </div>
+
+          <section id="csv-recent-panel" class="csv-recent-panel" aria-labelledby="csv-recent-heading" hidden>
+            <div class="csv-recent-panel-header">
+              <div>
+                <h2 id="csv-recent-heading">Recent local documents</h2>
+                <p>Continue work that Marin CSV saved in this browser.</p>
+              </div>
+              <button id="csv-recent-refresh-button" type="button" class="secondary">Refresh list</button>
+            </div>
+            <ul id="csv-recent-list" class="csv-recent-list"></ul>
+          </section>
+
+          <div id="csv-recovery-disclosure" class="csv-recovery-disclosure">
+            <strong>Local recovery</strong>
+            <p>Marin CSV automatically keeps a recovery copy of your work in this browser. Files are not uploaded. Local copies remain until you delete them or browser data is cleared.</p>
+          </div>
+        </div>
+
+        <div id="csv-editor-view" class="csv-editor-view" hidden>
+          <div id="csv-workspace-shell" class="csv-workspace-shell">
+            <header class="csv-workspace-header">
+              <div class="csv-workspace-identity">
+                <span class="csv-workspace-app-name">Marin CSV</span>
+                <span class="csv-workspace-divider" aria-hidden="true"></span>
+                <div class="csv-workspace-file">
+                  <h2 id="csv-file-heading" tabindex="-1">Untitled CSV</h2>
+                  <p id="csv-file-summary" class="csv-file-summary"></p>
+                </div>
+              </div>
+              <button id="csv-workspace-toggle" type="button" class="secondary csv-workspace-toggle" aria-controls="csv-workspace-shell" aria-expanded="false">
+                <svg class="csv-toolbar-icon csv-workspace-expand-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>
+                </svg>
+                <svg class="csv-toolbar-icon csv-workspace-collapse-icon" viewBox="0 0 24 24" aria-hidden="true" hidden>
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3"/>
+                </svg>
+                <span id="csv-workspace-toggle-label">Expand workspace</span>
+              </button>
+            </header>
+
+            <div id="csv-mode-notice" class="app-alert csv-mode-notice" role="alert" tabindex="-1" hidden></div>
+            <div id="csv-large-mode-notice" class="app-alert app-alert--warning csv-large-mode-notice" role="status" tabindex="-1" hidden></div>
+            <div id="csv-recovery-notice" class="app-alert csv-recovery-notice" role="status" tabindex="-1" hidden>
+              <span id="csv-recovery-notice-text"></span>
+              <div class="csv-recovery-notice-actions">
+                <button id="csv-recovery-copy-button" type="button" class="secondary" hidden>Create independent copy</button>
+                <button id="csv-recovery-takeover-button" type="button" class="secondary" hidden>Take over local copy</button>
+                <button id="csv-recovery-resume-button" type="button" class="secondary" hidden>Resume local recovery</button>
+              </div>
+            </div>
+
+            <div class="csv-toolbar" role="toolbar" aria-label="Marin CSV commands">
+              <div class="csv-toolbar-group" role="group" aria-label="File">
+                <button id="csv-open-another-button" type="button" class="secondary">
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5l2 2h11v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zM3 7V5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2"/></svg>
+                  <span>Open</span>
+                </button>
+                <button id="csv-download-button" type="button">
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+                  <span id="csv-download-label">Download CSV</span>
+                </button>
+                <button id="csv-recent-button" type="button" class="secondary">
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+                  <span>Recent</span>
+                </button>
+              </div>
+
+              <span class="csv-toolbar-separator" aria-hidden="true"></span>
+
+              <div class="csv-toolbar-group" role="group" aria-label="History">
+                <button id="csv-undo-button" type="button" class="secondary" disabled>
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5M4 12h9a7 7 0 0 1 7 7"/></svg>
+                  <span>Undo</span>
+                </button>
+                <button id="csv-redo-button" type="button" class="secondary" disabled>
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5M20 12h-9a7 7 0 0 0-7 7"/></svg>
+                  <span>Redo</span>
+                </button>
+              </div>
+
+              <span class="csv-toolbar-separator" aria-hidden="true"></span>
+
+              <div class="csv-toolbar-group" role="group" aria-label="Insert">
+                <button id="csv-add-row-button" type="button" class="secondary">
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h8M17 15v6M14 18h6"/></svg>
+                  <span>Add row</span>
+                </button>
+                <button id="csv-add-column-button" type="button" class="secondary">
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v16M12 4v16M18 4v8M15 17h6M18 14v6"/></svg>
+                  <span>Add column</span>
+                </button>
+              </div>
+
+              <span class="csv-toolbar-separator csv-toolbar-separator--optional" aria-hidden="true"></span>
+
+              <div class="csv-toolbar-group" role="group" aria-label="Search">
+                <button id="csv-find-button" type="button" class="secondary">
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                  <span>Find</span>
+                </button>
+              </div>
+
+              <label class="csv-toolbar-filter" for="csv-filter-input">
+                <span class="csv-visually-hidden">Filter visible rows</span>
+                <input id="csv-filter-input" type="search" placeholder="Filter visible rows" autocomplete="off" aria-describedby="csv-filter-help">
+              </label>
+
+              <details id="csv-more-menu" class="csv-toolbar-menu">
+                <summary class="secondary">
+                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                  <span>More</span>
+                </summary>
+                <div class="csv-toolbar-menu-panel">
+                  <div class="csv-toolbar-menu-actions" role="group" aria-label="Additional editing commands">
+                    <button id="csv-delete-row-button" type="button" class="secondary" disabled>Delete row</button>
+                    <button id="csv-delete-column-button" type="button" class="secondary" disabled>Delete column</button>
+                    <button id="csv-headers-button" type="button" class="secondary">Edit column names</button>
+                    <button id="csv-delete-local-button" type="button" class="secondary">Delete local copy</button>
+                    <button id="csv-resume-local-button" type="button" class="secondary" hidden>Resume local recovery</button>
+                  </div>
+                  <div class="csv-view-controls">
+                    <label for="csv-header-mode">
+                      First row
+                      <select id="csv-header-mode">
+                        <option value="headers">Use as column names</option>
+                        <option value="data">Use as data</option>
+                      </select>
+                    </label>
+                    <label for="csv-delimiter-select">
+                      Delimiter
+                      <select id="csv-delimiter-select">
+                        <option value=",">Comma</option>
+                        <option value="&#9;">Tab</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p id="csv-filter-help" class="csv-toolbar-menu-help">Filtering changes only the current view.</p>
+                </div>
+              </details>
+            </div>
+
+            <div class="csv-workspace-inspector-row">
+              <details id="csv-file-details" class="csv-file-details">
+                <summary>File details</summary>
+                <dl id="csv-file-metadata" class="csv-file-metadata"></dl>
+              </details>
+
+              <details id="csv-warnings" class="csv-warnings" hidden>
+                <summary><span id="csv-warning-summary">File warnings</span></summary>
+                <ul id="csv-warning-list"></ul>
+              </details>
+            </div>
+
+            <nav id="csv-grid-pager" class="csv-grid-pager" aria-label="File rows" hidden>
+              <button id="csv-first-page-button" type="button" class="secondary">First</button>
+              <button id="csv-previous-page-button" type="button" class="secondary">Previous</button>
+              <form id="csv-page-form" class="csv-page-form" novalidate>
+                <label for="csv-page-input">Page</label>
+                <input id="csv-page-input" type="number" inputmode="numeric" min="1" step="1" required aria-describedby="csv-page-total csv-page-error">
+                <span id="csv-page-total">of 1</span>
+                <span id="csv-page-error" class="csv-inline-error" role="alert" hidden></span>
+              </form>
+              <button id="csv-next-page-button" type="button" class="secondary">Next</button>
+              <button id="csv-last-page-button" type="button" class="secondary">Last</button>
+              <span id="csv-page-range" class="csv-page-range"></span>
+            </nav>
+
+            <div id="csv-selection-status" class="csv-visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+            <div id="csv-grid" class="csv-grid-host" aria-label="CSV data editor" aria-busy="false" aria-describedby="csv-grid-help csv-large-mode-notice csv-selection-status"></div>
+            <p id="csv-grid-help" class="csv-visually-hidden">Double-click or press Enter on a cell to edit. Enter saves a single-line field; Alt+Enter adds a line. In a multiline field, Enter adds a line and Shift+Enter saves. Sorting and filtering change only the view, not the saved row order.</p>
+
+            <div class="csv-workspace-status" aria-label="CSV file status">
+              <span id="csv-status-dimensions">0 rows · 0 columns</span>
+              <span id="csv-status-format">UTF-8 · Comma · LF</span>
+              <span id="csv-status-state">Unchanged</span>
+              <span id="csv-recovery-status" data-state="idle">Local recovery starting…</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="csv-drag-overlay" class="csv-drag-overlay" hidden aria-hidden="true">
+          <div>Drop the CSV or TSV file to open it</div>
+        </div>
+
+        <dialog id="csv-confirm-dialog" class="csv-dialog" aria-labelledby="csv-confirm-title" aria-describedby="csv-confirm-message">
+          <form method="dialog">
+            <h2 id="csv-confirm-title">Discard changes?</h2>
+            <p id="csv-confirm-message">You have changes that have not been downloaded.</p>
+            <div class="csv-dialog-actions">
+              <button id="csv-confirm-cancel" type="submit" value="cancel" class="secondary">Keep editing</button>
+              <button id="csv-confirm-accept" type="submit" value="accept">Discard changes</button>
+            </div>
+          </form>
+        </dialog>
+
+        <dialog id="csv-find-dialog" class="csv-dialog" aria-labelledby="csv-find-title">
+          <form id="csv-find-form" method="dialog" novalidate>
+            <h2 id="csv-find-title">Find and replace</h2>
+            <label for="csv-find-text">
+              Find
+              <input id="csv-find-text" type="text" required autocomplete="off" aria-describedby="csv-find-error csv-find-count">
+            </label>
+            <p id="csv-find-error" class="csv-inline-error" role="alert" hidden></p>
+            <label for="csv-replace-text">
+              Replace with
+              <input id="csv-replace-text" type="text" autocomplete="off">
+            </label>
+            <fieldset>
+              <legend>Options</legend>
+              <label><input id="csv-find-case" type="checkbox"> Match case</label>
+              <label><input id="csv-find-whole" type="checkbox"> Match whole cell</label>
+              <label><input id="csv-find-header" type="checkbox" checked> Include the first row</label>
+            </fieldset>
+            <p id="csv-find-count" class="csv-dialog-status" aria-live="polite"></p>
+            <div class="csv-dialog-actions">
+              <button type="button" class="secondary" data-close-dialog="csv-find-dialog">Cancel</button>
+              <button id="csv-replace-all-button" type="submit" value="replace">Replace all</button>
+            </div>
+          </form>
+        </dialog>
+
+        <dialog id="csv-headers-dialog" class="csv-dialog csv-dialog--wide" aria-labelledby="csv-headers-title" aria-describedby="csv-headers-description">
+          <form id="csv-headers-form" method="dialog">
+            <h2 id="csv-headers-title">Edit column names</h2>
+            <p id="csv-headers-description">These values are stored in the first row. Blank and duplicate names are allowed and preserved.</p>
+            <div id="csv-header-fields" class="csv-header-fields"></div>
+            <div class="csv-dialog-actions">
+              <button type="button" class="secondary" data-close-dialog="csv-headers-dialog">Cancel</button>
+              <button type="submit" value="save">Save column names</button>
+            </div>
+          </form>
+        </dialog>
+
+        <dialog id="csv-recent-dialog" class="csv-dialog csv-dialog--wide" aria-labelledby="csv-recent-dialog-title" aria-describedby="csv-recent-dialog-description">
+          <div>
+            <h2 id="csv-recent-dialog-title">Recent local documents</h2>
+            <p id="csv-recent-dialog-description">Recovery copies stay in this browser until you delete them or browser data is cleared. Downloading a CSV does not remove its local copy.</p>
+            <ul id="csv-recent-dialog-list" class="csv-recent-list"></ul>
+            <p id="csv-recent-dialog-empty" class="csv-dialog-status" hidden>No local recovery copies are available.</p>
+            <div class="csv-dialog-actions">
+              <button type="button" class="secondary" data-close-dialog="csv-recent-dialog">Close</button>
+            </div>
+          </div>
+        </dialog>
+      </section>
+
+      <marin-app-info app-name="Marin CSV" repo="marin-csv" security-src="security.json">
+        <template data-about>
+          <p>Marin CSV is a local-browser viewer and editor for comma- and tab-delimited text files. Every field is treated as text, so identifiers, leading zeros, long numbers, date-like values, and formula-like values are not converted automatically.</p>
+          <p>The app keeps the original file bytes. Downloading an untouched file reproduces those bytes exactly. After an edit, Marin CSV preserves the original delimiter, UTF-8 byte-order mark, line-ending style, trailing newline setting, and unchanged row representations wherever possible.</p>
+          <p>Files are processed on your device and are not sent to the County of Marin or a third-party service. A same-origin Web Worker performs parsing when the app is served through HTTP or HTTPS, keeping long parsing work off the interface thread.</p>
+          <p>Marin CSV also keeps browser-local recovery copies in IndexedDB so completed edits can survive a refresh or browser restart. Recovery copies remain until you delete them or clear browser data. They are separate from downloaded CSV files and are not an archival backup or user-managed encrypted storage.</p>
+          <p>Large documents use evidence-based safeguards. Moderately large documents are edited 1,000 rows at a time. Documents that exceed the reviewed browser-memory envelope open as a read-only preview; downloading that preview returns an exact copy of the original bytes.</p>
+          <p>The editor uses a full-width spreadsheet workspace. Expand workspace temporarily hides the MarinOS header and footer to give the grid the usable browser window; it does not enter browser fullscreen, change the file, or persist after a fresh page load.</p>
+        </template>
+        <template data-accessibility>
+          <p>Marin CSV supports keyboard operation for opening files, using the command toolbar, expanding or collapsing the workspace, editing cells, using dialogs, filtering, paging large documents, and downloading. The data editor exposes grid, row, column-header, row-header, grid-cell, read-only, selected-range, row-index, and column-index semantics. Progress, completion, selection, and error messages use live status regions.</p>
+          <p>When the workspace is expanded, hidden MarinOS shell regions are removed from normal keyboard and accessibility interaction. Escape closes a higher-priority dialog, menu, or cell edit before it collapses the workspace.</p>
+          <p>Browser-neutral accessibility-tree review and manual testing with screen readers remain required before a production release.</p>
+          <p>Report an accessibility problem through the Feedback link or the contact listed on the Security page.</p>
+        </template>
+      </marin-app-info>
+    </main>
+
+    <marin-app-footer app-name="Marin CSV"></marin-app-footer>
+    <marin-app-feedback></marin-app-feedback>
+  </body>
+</html>

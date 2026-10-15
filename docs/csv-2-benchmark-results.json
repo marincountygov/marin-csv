@@ -1,0 +1,242 @@
+{
+  "schema": 1,
+  "generated": "2026-10-14T15:50:51.007Z",
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "linux x64"
+  },
+  "thresholds": {
+    "preflightBytes": 8388608,
+    "pagedRows": 5000,
+    "pagedCells": 100000,
+    "pagedColumns": 100,
+    "previewBytes": 25165824,
+    "previewRows": 250000,
+    "previewCells": 1500000,
+    "previewColumns": 1000,
+    "pageSize": 1000,
+    "previewDataRows": 1000
+  },
+  "cases": [
+    {
+      "name": "standard-1k-x-10",
+      "configuredRows": 1000,
+      "configuredColumns": 10,
+      "sourceBytes": 70210,
+      "generationMs": 7.302851000000004,
+      "mode": "standard",
+      "readOnly": false,
+      "totalRows": 1001,
+      "dataRows": 1000,
+      "displayedRows": 1000,
+      "gridRows": 1000,
+      "columns": 10,
+      "cells": 10010,
+      "progress": [
+        "inspect",
+        "parse"
+      ],
+      "metrics": {
+        "inspectionMs": 37.20418600000001,
+        "parseMs": 30.607917999999984,
+        "totalMs": 68.30058899999999
+      },
+      "openWallMs": 68.44816600000001,
+      "validationMs": 1.8652519999999981,
+      "serializationMs": 0.24370299999998224,
+      "outputBytes": 70217,
+      "memory": {
+        "before": {
+          "heapUsed": 4230360,
+          "rss": 31449088
+        },
+        "afterOpen": {
+          "heapUsed": 5258784,
+          "rss": 47874048
+        },
+        "afterWork": {
+          "heapUsed": 5269440,
+          "rss": 47874048
+        },
+        "openHeapDelta": 1028424,
+        "openRssDelta": 16424960
+      }
+    },
+    {
+      "name": "paged-10k-x-10",
+      "configuredRows": 10000,
+      "configuredColumns": 10,
+      "sourceBytes": 781210,
+      "generationMs": 48.326846,
+      "mode": "paged",
+      "readOnly": false,
+      "totalRows": 10001,
+      "dataRows": 10000,
+      "displayedRows": 10000,
+      "gridRows": 1000,
+      "columns": 10,
+      "cells": 100010,
+      "progress": [
+        "inspect",
+        "parse"
+      ],
+      "metrics": {
+        "inspectionMs": 151.37338,
+        "parseMs": 144.30505000000002,
+        "totalMs": 297.335879
+      },
+      "openWallMs": 297.769503,
+      "validationMs": 16.124500999999952,
+      "serializationMs": 2.6317280000000096,
+      "outputBytes": 781217,
+      "memory": {
+        "before": {
+          "heapUsed": 4234080,
+          "rss": 35872768
+        },
+        "afterOpen": {
+          "heapUsed": 13083968,
+          "rss": 100630528
+        },
+        "afterWork": {
+          "heapUsed": 13099880,
+          "rss": 101289984
+        },
+        "openHeapDelta": 8849888,
+        "openRssDelta": 64757760
+      }
+    },
+    {
+      "name": "paged-10k-x-100",
+      "configuredRows": 10000,
+      "configuredColumns": 100,
+      "sourceBytes": 8782210,
+      "generationMs": 189.810181,
+      "mode": "paged",
+      "readOnly": false,
+      "totalRows": 10001,
+      "dataRows": 10000,
+      "displayedRows": 10000,
+      "gridRows": 1000,
+      "columns": 100,
+      "cells": 1000100,
+      "progress": [
+        "inspect",
+        "parse"
+      ],
+      "metrics": {
+        "inspectionMs": 363.775289,
+        "parseMs": 807.1211110000002,
+        "totalMs": 1173.248461
+      },
+      "openWallMs": 1173.644771,
+      "validationMs": 124.53834400000005,
+      "serializationMs": 20.162398000000167,
+      "outputBytes": 8782217,
+      "memory": {
+        "before": {
+          "heapUsed": 4229984,
+          "rss": 72761344
+        },
+        "afterOpen": {
+          "heapUsed": 70351032,
+          "rss": 202481664
+        },
+        "afterWork": {
+          "heapUsed": 70369136,
+          "rss": 199733248
+        },
+        "openHeapDelta": 66121048,
+        "openRssDelta": 129720320
+      }
+    },
+    {
+      "name": "preview-250k-x-1",
+      "configuredRows": 250001,
+      "configuredColumns": 1,
+      "sourceBytes": 2250018,
+      "generationMs": 225.044623,
+      "mode": "preview",
+      "readOnly": true,
+      "totalRows": 250002,
+      "dataRows": 250001,
+      "displayedRows": 1000,
+      "gridRows": 1000,
+      "columns": 1,
+      "cells": 250002,
+      "progress": [
+        "inspect",
+        "preview"
+      ],
+      "metrics": {
+        "inspectionMs": 272.10112799999996,
+        "parseMs": 0,
+        "totalMs": 275.33990900000003
+      },
+      "openWallMs": 275.499424,
+      "validationMs": null,
+      "serializationMs": 1.3734910000000582,
+      "outputBytes": 2250018,
+      "memory": {
+        "before": {
+          "heapUsed": 4248056,
+          "rss": 53821440
+        },
+        "afterOpen": {
+          "heapUsed": 4584528,
+          "rss": 131375104
+        },
+        "afterWork": {
+          "heapUsed": 4581808,
+          "rss": 133603328
+        },
+        "openHeapDelta": 336472,
+        "openRssDelta": 77553664
+      }
+    },
+    {
+      "name": "preview-1m-x-5",
+      "configuredRows": 1000000,
+      "configuredColumns": 5,
+      "sourceBytes": 44666715,
+      "generationMs": 1853.486265,
+      "mode": "preview",
+      "readOnly": true,
+      "totalRows": 1000001,
+      "dataRows": 1000000,
+      "displayedRows": 1000,
+      "gridRows": 1000,
+      "columns": 5,
+      "cells": 5000005,
+      "progress": [
+        "inspect",
+        "preview"
+      ],
+      "metrics": {
+        "inspectionMs": 1447.815365,
+        "parseMs": 0,
+        "totalMs": 1480.658303
+      },
+      "openWallMs": 1480.839805,
+      "validationMs": null,
+      "serializationMs": 28.317407000000003,
+      "outputBytes": 44666715,
+      "memory": {
+        "before": {
+          "heapUsed": 4246056,
+          "rss": 157421568
+        },
+        "afterOpen": {
+          "heapUsed": 4778128,
+          "rss": 191823872
+        },
+        "afterWork": {
+          "heapUsed": 4775168,
+          "rss": 224649216
+        },
+        "openHeapDelta": 532072,
+        "openRssDelta": 34402304
+      }
+    }
+  ]
+}

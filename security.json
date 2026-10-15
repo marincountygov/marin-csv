@@ -1,0 +1,170 @@
+{
+  "$schema": "https://raw.githubusercontent.com/marincountygov/marin-os/main/schemas/security.schema.json",
+  "$comment": "Marin CSV security posture. The app is a static local-browser editor: selected file bytes are not uploaded. CSV-4 intentionally stores local recovery records in origin-scoped IndexedDB until explicit deletion or browser storage removal. Static CSP/referrer metadata is generated from this file. GitHub Pages cannot provide the listed header-only controls.",
+  "schema": 1,
+  "profile": "internal",
+  "securityTxt": {
+    "enabled": true,
+    "contact": [
+      "mailto:innovation@marincounty.gov"
+    ],
+    "preferredLanguages": [
+      "en"
+    ],
+    "expires": "2027-10-14T00:00:00.000Z"
+  },
+  "transport": {
+    "httpsRequired": true,
+    "httpRedirect": true,
+    "hsts": {
+      "status": "inherited-from-platform"
+    }
+  },
+  "headers": {
+    "contentTypeOptions": {
+      "status": "not-achievable",
+      "notes": "GitHub Pages does not serve custom HTTP response headers."
+    },
+    "referrerPolicy": {
+      "status": "enabled-via-meta",
+      "value": "strict-origin-when-cross-origin"
+    },
+    "permissionsPolicy": {
+      "status": "not-achievable",
+      "notes": "GitHub Pages does not serve custom HTTP response headers."
+    },
+    "frameProtection": {
+      "status": "not-achievable",
+      "notes": "Requires a header (X-Frame-Options) or a directive meta-delivered CSP ignores (frame-ancestors); neither is available on GitHub Pages."
+    }
+  },
+  "csp": {
+    "deliveryMechanism": "meta",
+    "directives": {
+      "default-src": [
+        "'self'"
+      ],
+      "script-src": [
+        "'self'"
+      ],
+      "worker-src": [
+        "'self'"
+      ],
+      "style-src": [
+        "'self'"
+      ],
+      "img-src": [
+        "'self'",
+        "data:"
+      ],
+      "font-src": [
+        "'self'"
+      ],
+      "connect-src": [
+        "'self'",
+        "https://marincountygov.github.io/marin-os/catalog.json",
+        "https://marincountygov.github.io/marin-os/data/lighthouse.json",
+        "https://marincountygov.github.io/marin-os/data/tech.json",
+        "https://api.github.com"
+      ],
+      "object-src": [
+        "'none'"
+      ],
+      "base-uri": [
+        "'self'"
+      ],
+      "form-action": [
+        "'self'"
+      ]
+    }
+  },
+  "authentication": {
+    "required": false
+  },
+  "authorization": {
+    "required": false,
+    "serverSideEnforced": false
+  },
+  "data": {
+    "collectsUserData": false,
+    "collectsSensitiveData": false,
+    "storesPersonalInformation": true,
+    "acceptsUserSubmittedContent": true,
+    "externalDataSources": [
+      "https://marincountygov.github.io/marin-os/catalog.json",
+      "https://marincountygov.github.io/marin-os/data/lighthouse.json",
+      "https://marincountygov.github.io/marin-os/data/tech.json",
+      "https://api.github.com"
+    ]
+  },
+  "dependencies": {
+    "lockfileRequired": true,
+    "runtimeCdnPolicy": "see marin-digital-standards/product-design/runtime-dependencies.md",
+    "thirdPartyDependencyReview": true,
+    "dependencyScanning": {
+      "status": "enabled",
+      "provider": "github-advanced-security"
+    }
+  },
+  "secrets": {
+    "clientSideSecretsProhibited": true,
+    "committedSecretsProhibited": true,
+    "repositoryScanning": {
+      "status": "enabled",
+      "provider": "github-advanced-security"
+    }
+  },
+  "monitoring": {
+    "secretScanning": {
+      "status": "enabled",
+      "provider": "github-advanced-security"
+    },
+    "pushProtection": {
+      "status": "enabled",
+      "provider": "github-advanced-security"
+    },
+    "dependabotSecurityUpdates": {
+      "status": "enabled",
+      "provider": "github-advanced-security"
+    }
+  },
+  "exceptions": [
+    {
+      "control": "Clickjacking protection (frame-ancestors / X-Frame-Options)",
+      "reason": "GitHub Pages cannot serve custom HTTP headers, and meta-delivered CSP ignores frame-ancestors.",
+      "riskDescription": "The app is a local-browser file editor and performs no server-side transaction. Review the hosting limitation again before beta or if the workflow adds authentication or sensitive server actions.",
+      "owner": "County of Marin",
+      "expires": "2027-10-14"
+    },
+    {
+      "control": "MIME-sniffing protection (X-Content-Type-Options) and Permissions-Policy",
+      "reason": "Both require a real HTTP response header, which GitHub Pages does not serve.",
+      "riskDescription": "Standing gap shared by every MarinOS app on this hosting stack. See marin-digital-standards/security/standard.md.",
+      "owner": "County of Marin",
+      "expires": "2027-10-14"
+    },
+    {
+      "control": "Dedicated-origin isolation for browser-local recovery",
+      "reason": "CSV-4 permits deployment on a shared HTTPS origin. IndexedDB is isolated by origin rather than path or database name.",
+      "riskDescription": "Other code executing on the same origin is inside the same browser-storage security boundary. Sensitive-data use requires explicit County security and privacy review; a dedicated origin remains a future hardening option.",
+      "owner": "County of Marin",
+      "expires": "2027-10-14"
+    }
+  ],
+  "publicSecurity": {
+    "lastReviewed": "2026-10-14",
+    "controls": [
+      "HTTPS",
+      "Content Security Policy",
+      "Dependency monitoring",
+      "Secret scanning"
+    ],
+    "data": {
+      "collectsPersonalData": false
+    }
+  },
+  "review": {
+    "lastReviewed": "2026-10-14",
+    "owner": "County of Marin"
+  }
+}

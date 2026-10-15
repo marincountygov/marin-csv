@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "generated": "2026-10-14T20:34:09.942089Z",
+  "environment": {
+    "browser": "Chromium 144.0.7559.96",
+    "executionPath": "in-memory component fixture"
+  },
+  "cases": [
+    {
+      "case": "standard-1k-x-10",
+      "sourceBytes": 79130,
+      "mode": "standard",
+      "rows": 1000,
+      "columns": 10,
+      "openToUsableGridMs": 667.8,
+      "editCommitMs": 305.7,
+      "sortMs": 82.6,
+      "filterMs": 19.7,
+      "pageChangeMs": null
+    },
+    {
+      "case": "paged-10k-x-10",
+      "sourceBytes": 858991,
+      "mode": "paged",
+      "rows": 10000,
+      "columns": 10,
+      "openToUsableGridMs": 1586.3,
+      "editCommitMs": 43.4,
+      "sortMs": null,
+      "filterMs": null,
+      "pageChangeMs": 1082.5
+    },
+    {
+      "case": "preview-250k-x-1",
+      "sourceBytes": 500005,
+      "mode": "preview",
+      "rows": 250001,
+      "columns": 1,
+      "openToUsableGridMs": 487.3,
+      "editCommitMs": null,
+      "sortMs": null,
+      "filterMs": null,
+      "pageChangeMs": null
+    }
+  ]
+}
