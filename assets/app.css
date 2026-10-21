@@ -140,7 +140,7 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
 
 .csv-drop-zone {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(1rem, 3vw, 2rem);
   align-items: start;
   inline-size: min(100%, 52rem);
@@ -160,17 +160,6 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
 
 .csv-drop-zone h2 {
   margin-block-start: 0;
-}
-
-.csv-drop-icon {
-  inline-size: clamp(3rem, 8vw, 4.5rem);
-  block-size: clamp(3rem, 8vw, 4.5rem);
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 4;
-  color: var(--app-accent, var(--pico-primary));
 }
 
 .csv-open-actions,

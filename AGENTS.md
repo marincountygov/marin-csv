@@ -80,6 +80,8 @@ full-document copies. Preserve the default snapshot semantics of
 
 ## Interface and accessibility
 
+Forms carry only form functions: fields, labels, help text, and their buttons. Do not add icons, illustrations, or other embellishments to a form, including the open-file form.
+
 Use Marin App Shell and Marin UI patterns. Normal mode retains the standard
 shell. Expanded mode is a session-only, in-page application state: do not call
 the Fullscreen API, persist it, fork shell markup, or duplicate shell
