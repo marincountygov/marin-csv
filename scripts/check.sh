@@ -34,6 +34,7 @@ bash -n "$ROOT_DIR/scripts/check.sh"
 python3 "$ROOT_DIR/scripts/sync-security-meta.py" --check
 python3 "$ROOT_DIR/tests/validate_template.py"
 python3 "$ROOT_DIR/tests/test_security_meta.py"
+python3 "$ROOT_DIR/vendor/marinos/audit-buttons.py" "$ROOT_DIR" --fail
 
 while IFS= read -r -d '' script; do
   node --check "$script"
