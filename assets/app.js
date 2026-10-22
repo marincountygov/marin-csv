@@ -502,7 +502,7 @@
       if (!activeHere) {
         const open = document.createElement("button");
         open.type = "button";
-        open.className = "secondary";
+        open.className = "action-button";
         open.dataset.recoveryAction = "open";
         open.dataset.documentId = record.documentId;
         open.textContent = (lease === "active" && !sameSession) || lease === "stale" ? "Open read-only" : "Open";
@@ -512,7 +512,7 @@
       if (lease === "active" && !sameSession) {
         const copy = document.createElement("button");
         copy.type = "button";
-        copy.className = "secondary";
+        copy.className = "action-button";
         copy.dataset.recoveryAction = "copy";
         copy.dataset.documentId = record.documentId;
         copy.textContent = "Create copy";
@@ -522,7 +522,7 @@
       if (lease === "stale" && !activeHere) {
         const takeover = document.createElement("button");
         takeover.type = "button";
-        takeover.className = "secondary";
+        takeover.className = "action-button";
         takeover.dataset.recoveryAction = "takeover";
         takeover.dataset.documentId = record.documentId;
         takeover.textContent = "Take over";
@@ -531,7 +531,7 @@
       }
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "secondary";
+      remove.className = "action-button is-danger";
       remove.dataset.recoveryAction = "delete";
       remove.dataset.documentId = record.documentId;
       remove.dataset.filename = record.filename || "Untitled CSV";
