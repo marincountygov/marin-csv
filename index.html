@@ -62,8 +62,8 @@
               <h2 id="start-heading">Open a delimited text file</h2>
               <p id="csv-drop-help">Drop a file anywhere on this page, or choose a file from your device.</p>
               <div class="csv-open-actions">
-                <button id="csv-open-button" type="button" aria-describedby="csv-drop-help csv-local-note">Choose file</button>
-                <button id="csv-sample-button" type="button" class="secondary">Open sample</button>
+                <button id="csv-open-button" type="button" class="primary" aria-describedby="csv-drop-help csv-local-note">Choose file</button>
+                <button id="csv-sample-button" type="button" class="action-button">Open sample</button>
               </div>
               <input id="csv-file-input" class="csv-visually-hidden" type="file" tabindex="-1" accept=".csv,.tsv,.psv,.txt,text/csv,text/tab-separated-values,text/plain">
               <p id="csv-local-note" class="csv-local-note">Your file stays in this browser. Marin CSV does not upload its contents.</p>
@@ -76,7 +76,7 @@
                 <h2 id="csv-recent-heading">Recent local documents</h2>
                 <p>Continue work that Marin CSV saved in this browser.</p>
               </div>
-              <button id="csv-recent-refresh-button" type="button" class="secondary">Refresh list</button>
+              <button id="csv-recent-refresh-button" type="button" class="action-button" data-icon="refresh-cw" aria-label="Refresh list" title="Refresh list"></button>
             </div>
             <ul id="csv-recent-list" class="csv-recent-list"></ul>
           </section>
@@ -98,14 +98,14 @@
                   <p id="csv-file-summary" class="csv-file-summary"></p>
                 </div>
               </div>
-              <button id="csv-workspace-toggle" type="button" class="secondary csv-workspace-toggle" aria-controls="csv-workspace-shell" aria-expanded="false">
+              <button id="csv-workspace-toggle" type="button" class="action-button csv-workspace-toggle" aria-controls="csv-workspace-shell" aria-expanded="false">
                 <svg class="csv-toolbar-icon csv-workspace-expand-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
                 </svg>
                 <svg class="csv-toolbar-icon csv-workspace-collapse-icon" viewBox="0 0 24 24" aria-hidden="true" hidden>
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3"/>
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
                 </svg>
-                <span id="csv-workspace-toggle-label">Expand workspace</span>
+                <span id="csv-workspace-toggle-label" class="csv-visually-hidden">Expand workspace</span>
               </button>
             </header>
 
@@ -114,61 +114,37 @@
             <div id="csv-recovery-notice" class="app-alert csv-recovery-notice" role="status" tabindex="-1" hidden>
               <span id="csv-recovery-notice-text"></span>
               <div class="csv-recovery-notice-actions">
-                <button id="csv-recovery-copy-button" type="button" class="secondary" hidden>Create independent copy</button>
-                <button id="csv-recovery-takeover-button" type="button" class="secondary" hidden>Take over local copy</button>
-                <button id="csv-recovery-resume-button" type="button" class="secondary" hidden>Resume local recovery</button>
+                <button id="csv-recovery-copy-button" type="button" class="action-button" hidden>Create independent copy</button>
+                <button id="csv-recovery-takeover-button" type="button" class="action-button" hidden>Take over local copy</button>
+                <button id="csv-recovery-resume-button" type="button" class="action-button" hidden>Resume local recovery</button>
               </div>
             </div>
 
             <div class="csv-toolbar" role="toolbar" aria-label="Marin CSV commands">
               <div class="csv-toolbar-group" role="group" aria-label="File">
-                <button id="csv-open-another-button" type="button" class="secondary">
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5l2 2h11v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zM3 7V5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2"/></svg>
-                  <span>Open</span>
-                </button>
-                <button id="csv-download-button" type="button">
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
-                  <span id="csv-download-label">Download file</span>
-                </button>
-                <button id="csv-recent-button" type="button" class="secondary">
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
-                  <span>Recent</span>
-                </button>
+                <button id="csv-open-another-button" type="button" class="action-button" data-icon="folder-open" aria-label="Open" title="Open"></button>
+                <button id="csv-download-button" type="button" class="primary" data-icon="download"><span id="csv-download-label">Download file</span></button>
+                <button id="csv-recent-button" type="button" class="action-button" data-icon="clock" aria-label="Recent" title="Recent"></button>
               </div>
 
               <span class="csv-toolbar-separator" aria-hidden="true"></span>
 
               <div class="csv-toolbar-group" role="group" aria-label="History">
-                <button id="csv-undo-button" type="button" class="secondary" disabled>
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5M4 12h9a7 7 0 0 1 7 7"/></svg>
-                  <span>Undo</span>
-                </button>
-                <button id="csv-redo-button" type="button" class="secondary" disabled>
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5M20 12h-9a7 7 0 0 0-7 7"/></svg>
-                  <span>Redo</span>
-                </button>
+                <button id="csv-undo-button" type="button" class="action-button" data-icon="undo-2" aria-label="Undo" title="Undo" disabled></button>
+                <button id="csv-redo-button" type="button" class="action-button" data-icon="redo-2" aria-label="Redo" title="Redo" disabled></button>
               </div>
 
               <span class="csv-toolbar-separator" aria-hidden="true"></span>
 
               <div class="csv-toolbar-group" role="group" aria-label="Insert">
-                <button id="csv-add-row-button" type="button" class="secondary">
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h8M17 15v6M14 18h6"/></svg>
-                  <span>Add row</span>
-                </button>
-                <button id="csv-add-column-button" type="button" class="secondary">
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v16M12 4v16M18 4v8M15 17h6M18 14v6"/></svg>
-                  <span>Add column</span>
-                </button>
+                <button id="csv-add-row-button" type="button" class="action-button" data-icon="plus">Add row</button>
+                <button id="csv-add-column-button" type="button" class="action-button" data-icon="plus">Add column</button>
               </div>
 
               <span class="csv-toolbar-separator csv-toolbar-separator--optional" aria-hidden="true"></span>
 
               <div class="csv-toolbar-group" role="group" aria-label="Search">
-                <button id="csv-find-button" type="button" class="secondary">
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-                  <span>Find</span>
-                </button>
+                <button id="csv-find-button" type="button" class="action-button" data-icon="search" aria-label="Find" title="Find"></button>
               </div>
 
               <label class="csv-toolbar-filter" for="csv-filter-input">
@@ -177,17 +153,14 @@
               </label>
 
               <details id="csv-more-menu" class="csv-toolbar-menu">
-                <summary class="secondary">
-                  <svg class="csv-toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
-                  <span>More</span>
-                </summary>
+                <summary class="action-button" data-icon="ellipsis" aria-label="More" title="More"></summary>
                 <div class="csv-toolbar-menu-panel">
                   <div class="csv-toolbar-menu-actions" role="group" aria-label="Additional editing commands">
-                    <button id="csv-delete-row-button" type="button" class="secondary" disabled>Delete row</button>
-                    <button id="csv-delete-column-button" type="button" class="secondary" disabled>Delete column</button>
-                    <button id="csv-headers-button" type="button" class="secondary">Edit column names</button>
-                    <button id="csv-delete-local-button" type="button" class="secondary">Delete local copy</button>
-                    <button id="csv-resume-local-button" type="button" class="secondary" hidden>Resume local recovery</button>
+                    <button id="csv-delete-row-button" type="button" class="action-button is-danger" disabled>Delete row</button>
+                    <button id="csv-delete-column-button" type="button" class="action-button is-danger" disabled>Delete column</button>
+                    <button id="csv-headers-button" type="button" class="action-button">Edit column names</button>
+                    <button id="csv-delete-local-button" type="button" class="action-button is-danger">Delete local copy</button>
+                    <button id="csv-resume-local-button" type="button" class="action-button" hidden>Resume local recovery</button>
                   </div>
                   <div class="csv-view-controls">
                     <label for="csv-header-mode">
@@ -215,7 +188,7 @@
             <div id="csv-value-filter" class="csv-value-filter" role="status" hidden>
               <span>Exact filter:</span>
               <strong id="csv-value-filter-label"></strong>
-              <button id="csv-clear-value-filter" type="button" class="secondary">Clear filter</button>
+              <button id="csv-clear-value-filter" type="button" class="action-button" data-icon="x" aria-label="Clear filter" title="Clear filter"></button>
             </div>
 
             <div class="csv-workspace-inspector-row">
@@ -231,16 +204,20 @@
             </div>
 
             <nav id="csv-grid-pager" class="csv-grid-pager" aria-label="File rows" hidden>
-              <button id="csv-first-page-button" type="button" class="secondary">First</button>
-              <button id="csv-previous-page-button" type="button" class="secondary">Previous</button>
+              <div class="action-group action-group--spaced" role="group" aria-label="Earlier pages">
+                <button id="csv-first-page-button" type="button" class="action-button" data-icon="chevrons-left" aria-label="First" title="First page"></button>
+                <button id="csv-previous-page-button" type="button" class="action-button" data-icon="chevron-left" aria-label="Previous" title="Previous page"></button>
+              </div>
               <form id="csv-page-form" class="csv-page-form" novalidate>
                 <label for="csv-page-input">Page</label>
                 <input id="csv-page-input" type="number" inputmode="numeric" min="1" step="1" required aria-describedby="csv-page-total csv-page-error">
                 <span id="csv-page-total">of 1</span>
                 <span id="csv-page-error" class="csv-inline-error" role="alert" hidden></span>
               </form>
-              <button id="csv-next-page-button" type="button" class="secondary">Next</button>
-              <button id="csv-last-page-button" type="button" class="secondary">Last</button>
+              <div class="action-group action-group--spaced" role="group" aria-label="Later pages">
+                <button id="csv-next-page-button" type="button" class="action-button" data-icon="chevron-right" aria-label="Next" title="Next page"></button>
+                <button id="csv-last-page-button" type="button" class="action-button" data-icon="chevrons-right" aria-label="Last" title="Last page"></button>
+              </div>
               <span id="csv-page-range" class="csv-page-range"></span>
             </nav>
 
@@ -262,12 +239,12 @@
         </div>
 
         <div id="csv-cell-context-menu" class="csv-cell-context-menu" role="menu" aria-label="Field actions" hidden>
-          <button id="csv-context-edit" type="button" role="menuitem" data-context-action="edit">Edit field</button>
-          <button id="csv-context-clear" type="button" role="menuitem" data-context-action="clear">Clear field</button>
-          <button id="csv-context-filter" type="button" role="menuitem" data-context-action="filter">Filter to this value</button>
+          <button id="csv-context-edit" type="button" role="menuitem" data-button-kind="menu-item" data-context-action="edit">Edit field</button>
+          <button id="csv-context-clear" type="button" role="menuitem" data-button-kind="menu-item" data-context-action="clear">Clear field</button>
+          <button id="csv-context-filter" type="button" role="menuitem" data-button-kind="menu-item" data-context-action="filter">Filter to this value</button>
           <hr role="separator">
-          <button id="csv-context-delete-row" type="button" role="menuitem" class="csv-context-destructive" data-context-action="delete-row">Delete row…</button>
-          <button id="csv-context-delete-column" type="button" role="menuitem" class="csv-context-destructive" data-context-action="delete-column">Delete column…</button>
+          <button id="csv-context-delete-row" type="button" role="menuitem" data-button-kind="menu-item" class="csv-context-destructive" data-context-action="delete-row">Delete row…</button>
+          <button id="csv-context-delete-column" type="button" role="menuitem" data-button-kind="menu-item" class="csv-context-destructive" data-context-action="delete-column">Delete column…</button>
         </div>
 
         <dialog id="csv-confirm-dialog" class="csv-dialog" aria-labelledby="csv-confirm-title" aria-describedby="csv-confirm-message">
@@ -275,7 +252,7 @@
             <h2 id="csv-confirm-title">Discard changes?</h2>
             <p id="csv-confirm-message">You have changes that have not been downloaded.</p>
             <div class="csv-dialog-actions">
-              <button id="csv-confirm-cancel" type="submit" value="cancel" class="secondary">Keep editing</button>
+              <button id="csv-confirm-cancel" type="submit" value="cancel" class="action-button">Keep editing</button>
               <button id="csv-confirm-accept" type="submit" value="accept">Discard changes</button>
             </div>
           </form>
@@ -301,7 +278,7 @@
             </fieldset>
             <p id="csv-find-count" class="csv-dialog-status" aria-live="polite"></p>
             <div class="csv-dialog-actions">
-              <button type="button" class="secondary" data-close-dialog="csv-find-dialog">Cancel</button>
+              <button type="button" class="action-button" data-close-dialog="csv-find-dialog">Cancel</button>
               <button id="csv-replace-all-button" type="submit" value="replace">Replace all</button>
             </div>
           </form>
@@ -313,7 +290,7 @@
             <p id="csv-headers-description">These values are stored in the first row. Blank and duplicate names are allowed and preserved.</p>
             <div id="csv-header-fields" class="csv-header-fields"></div>
             <div class="csv-dialog-actions">
-              <button type="button" class="secondary" data-close-dialog="csv-headers-dialog">Cancel</button>
+              <button type="button" class="action-button" data-close-dialog="csv-headers-dialog">Cancel</button>
               <button type="submit" value="save">Save column names</button>
             </div>
           </form>
@@ -326,7 +303,7 @@
             <ul id="csv-recent-dialog-list" class="csv-recent-list"></ul>
             <p id="csv-recent-dialog-empty" class="csv-dialog-status" hidden>No local recovery copies are available.</p>
             <div class="csv-dialog-actions">
-              <button type="button" class="secondary" data-close-dialog="csv-recent-dialog">Close</button>
+              <button type="button" class="action-button" data-close-dialog="csv-recent-dialog">Close</button>
             </div>
           </div>
         </dialog>

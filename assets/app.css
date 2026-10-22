@@ -265,35 +265,19 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
   white-space: nowrap;
 }
 
-.csv-workspace-toggle,
-.csv-toolbar button,
-.csv-toolbar summary {
+.csv-toolbar button.primary {
   display: inline-flex;
   min-block-size: 2.35rem;
-  padding: 0.42rem 0.62rem;
+  padding: 0.42rem 0.75rem;
   align-items: center;
   justify-content: center;
   gap: 0.38rem;
-  border-radius: calc(var(--pico-border-radius) * 0.8);
-  font-size: 0.82rem;
-  font-weight: 650;
-  line-height: 1.2;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 
 .csv-workspace-toggle {
   flex: 0 0 auto;
-}
-
-.csv-toolbar-icon {
-  inline-size: 1rem;
-  block-size: 1rem;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 4;
 }
 
 .csv-mode-notice,
