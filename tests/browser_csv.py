@@ -10,6 +10,17 @@ import sys
 from browser_smoke import configure, fixture_page, ready, require, serve
 
 
+# Independent golden bytes for the built-in sample. A no-op edit must preserve
+# its embedded CRLF, quoting, row boundaries, and final record separator.
+SAMPLE_CSV = "\r\n".join([
+    "employee_id,zip_code,long_number,date_like,scientific_like,formula_like,notes",
+    '000123,00901,12345678901234567890,03-04,1E10,"=SUM(A1:A2)","Line one',
+    'Line two"',
+    '000124,02108,00000000001234567890,01-02,9E3,"@example","Comma, quote ""and"" line break"',
+    "",
+]).encode("utf-8")
+
+
 def download_bytes(download) -> bytes:
     path = download.path()
     require(path is not None, "Browser did not retain the downloaded file")
@@ -186,8 +197,14 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             require("Shift+Enter saves" in notes_editor.get_attribute("aria-label"),
                     "Multiline save instruction is missing from the editor name")
             notes_editor.press("Shift+Enter")
-            require("Unchanged from opened file" in page.locator("#csv-file-metadata").text_content(),
-                    "A no-op multiline edit changed the document")
+            notes_editor.wait_for(state="detached")
+            page.wait_for_function(
+                "() => document.querySelector('#csv-file-metadata')?.textContent.includes('Unchanged from opened file')"
+            )
+            with page.expect_download() as unchanged_download_info:
+                page.locator("#csv-download-button").click()
+            require(download_bytes(unchanged_download_info.value) == SAMPLE_CSV,
+                    "A no-op multiline edit changed the original CSV bytes or CRLF convention")
 
             # Alt+Enter can promote a single-line field to multiline. Newly
             # inserted line breaks use the document's CRLF convention.
@@ -203,6 +220,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                     "Promoted multiline editor lacks its save instruction")
             promote_editor.type("Second line")
             promote_editor.press("Shift+Enter")
+            promote_editor.wait_for(state="detached")
             page.wait_for_function(
                 "() => document.querySelector(`.tabulator-cell[data-document-row-index='2'][data-column-index='6']`)?.innerText.endsWith('\\nSecond line')"
             )
@@ -217,9 +235,12 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             )
 
             # Drag selection and Ctrl+C use the real Tabulator range/clipboard
-            # modules. Capture DataTransfer.setData before Tabulator's bubble
-            # listener to verify the exact tab/newline payload without relying
-            # on the operating system clipboard in headless Chromium.
+            # modules. Both cells must be visible before taking pointer
+            # coordinates: Tabulator may redraw its virtualized grid on undo.
+            # Capture DataTransfer.setData before Tabulator's bubble listener
+            # without relying on the OS clipboard in headless Chromium.
+            data_cell(page, 1, 0).scroll_into_view_if_needed()
+            data_cell(page, 2, 1).scroll_into_view_if_needed()
             start_box = data_cell(page, 1, 0).bounding_box()
             end_box = data_cell(page, 2, 1).bounding_box()
             require(start_box is not None and end_box is not None,
@@ -229,12 +250,28 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             page.mouse.down()
             page.mouse.move(end_box["x"] + end_box["width"] / 2,
                             end_box["y"] + end_box["height"] / 2, steps=10)
+            # Keep the pointer pressed through a rendering opportunity: the
+            # range listener may coalesce intermediate moves into a frame.
+            page.evaluate("""() => new Promise(resolve => {
+              requestAnimationFrame(() => requestAnimationFrame(resolve));
+            })""")
             page.mouse.up()
-            require(page.locator(".tabulator-cell.tabulator-range-selected").count() == 4,
-                    "Two-by-two range selection did not select four cells")
-            require(page.locator('.tabulator-cell.tabulator-range-selected[aria-selected="true"]').count() == 4,
-                    "Selected grid cells do not expose aria-selected")
-            page.wait_for_function("document.querySelector('#csv-selection-status')?.textContent.includes('4 cells selected')")
+            # Pointer release, the Tabulator range callback, accessibility
+            # decoration, and the app status update are not one atomic event.
+            # Wait for ALL observable states; do not retry the gesture or settle
+            # for a smaller selection when a real regression occurs.
+            page.wait_for_function("""() => {
+              const selected = document.querySelectorAll('.tabulator-cell.tabulator-range-selected');
+              const accessible = document.querySelectorAll('.tabulator-cell.tabulator-range-selected[aria-selected="true"]');
+              const status = document.querySelector('#csv-selection-status')?.textContent || '';
+              return selected.length === 4 && accessible.length === 4
+                && status.includes('4 cells selected');
+            }""")
+            selected_coordinates = page.locator(
+                '.tabulator-cell.tabulator-range-selected[aria-selected="true"]'
+            ).evaluate_all("cells => cells.map(cell => [Number(cell.dataset.documentRowIndex), Number(cell.dataset.columnIndex)])")
+            require(sorted(selected_coordinates) == [[1, 0], [1, 1], [2, 0], [2, 1]],
+                    f"Two-by-two range selected the wrong physical cells: {selected_coordinates}")
             page.evaluate("""() => {
                 window.__marinCsvCopied = [];
                 document.addEventListener('copy', event => {
@@ -296,7 +333,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             with page.expect_download() as edited_download_info:
                 page.locator("#csv-download-button").click()
             edited_download = edited_download_info.value
-            require(edited_download.suggested_filename == "marin-csv-sample-edited-3.csv",
+            require(edited_download.suggested_filename == "marin-csv-sample-edited-4.csv",
                     "Edited download sequence differs")
             edited = download_bytes(edited_download)
             require(b"000999,00901" in edited, "Edited field is missing from download")

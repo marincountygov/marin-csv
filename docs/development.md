@@ -115,6 +115,21 @@ bash scripts/check.sh --browser-in-memory
 bash scripts/check.sh --browser
 ```
 
+The CSV browser workflow (`tests/browser_csv.py`) verifies that a no-op edit
+preserves every byte of the CRLF sample, an intentional multiline edit uses
+CRLF, and a pointer-selected 2-by-2 range has exactly four ARIA-selected
+cells at the expected physical coordinates before checking Ctrl+C output.
+The workspace browser workflow (`tests/browser_workspace.py`) checks that
+keyboard focus returns to the workspace toggle *after* its scheduled resize
+and focus-restoration animation frames. These checks wait for observable
+browser state instead of depending on a particular event-loop speed.
+
+`--browser-in-memory` checks the real vendored browser components but cannot
+validate worker transfers, HTTP asset timing, or same-origin CSP behavior.
+A passing in-memory run does not replace a `--browser` run on a machine where
+Chromium can navigate to localhost. Do not skip failing browser assertions or
+replace user-driven drag selection with programmatic selection.
+
 The final command is mandatory in a localhost-permitted environment. Automated
 tests do not establish WCAG 2.2 AA conformance. Complete the manual checklists
 in `docs/csv-4-manual-review.md`, `docs/csv-5-manual-review.md`, and

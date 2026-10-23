@@ -98,6 +98,23 @@ def toggle_name(page, expected: str) -> None:
             f"Workspace toggle label is not {expected!r}")
 
 
+def wait_for_toggle_focus(page, transition: str) -> None:
+    """Observe focus after the transition's layout and focus restoration frames.
+
+    setWorkspaceMode updates its mode synchronously, then schedules resizing
+    and focus on successive animation frames. Reading activeElement directly
+    after the mode changes races that explicit keyboard-focus contract.
+    """
+    page.evaluate("""() => new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    })""")
+    page.wait_for_function(
+        "() => document.activeElement === document.querySelector('#csv-workspace-toggle')"
+    )
+    require(page.locator("#csv-workspace-toggle").evaluate("el => el === document.activeElement"),
+            f"{transition} did not restore focus to the workspace control")
+
+
 def shell_state(page, hidden: bool) -> None:
     regions = {
         ".skip-link": ".skip-link",
@@ -223,8 +240,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             toggle_name(page, "Collapse workspace")
             require(toggle.get_attribute("aria-expanded") == "true",
                     "Expanded workspace toggle has incorrect ARIA state")
-            require(toggle.evaluate("el => el === document.activeElement"),
-                    "Expand transition did not retain predictable focus on its control")
+            wait_for_toggle_focus(page, "Expand transition")
             require(page.evaluate("window.__csvFullscreenCalls") == 0,
                     "Expanded workspace invoked the Fullscreen API")
             shell_state(page, True)
@@ -296,8 +312,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             page.keyboard.press("Escape")
             mode(page, "normal")
             toggle_name(page, "Expand workspace")
-            require(toggle.evaluate("el => el === document.activeElement"),
-                    "Collapse by Escape did not focus the corresponding workspace control")
+            wait_for_toggle_focus(page, "Collapse by Escape")
             shell_state(page, False)
 
             # The same edit must serialize identically in normal and expanded
