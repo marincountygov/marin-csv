@@ -9,7 +9,7 @@ project:
   status: alpha
 
 platform:
-  shell: 1.18.0
+  shell: 1.20.0
 
 deployment:
   target: github-pages
