@@ -655,32 +655,6 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
   color: var(--app-danger-text, var(--pico-del-color));
 }
 
-.csv-drag-overlay {
-  position: fixed;
-  z-index: 1400;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 2rem;
-  background: color-mix(in srgb, var(--app-bg, var(--pico-background-color)) 88%, transparent);
-  backdrop-filter: blur(0.25rem);
-}
-
-.csv-drag-overlay[hidden] {
-  display: none;
-}
-
-.csv-drag-overlay > div {
-  padding: clamp(2rem, 7vw, 5rem);
-  border: 0.25rem dashed var(--app-accent, var(--pico-primary));
-  border-radius: calc(var(--pico-border-radius) * 1.5);
-  background: var(--app-surface, var(--pico-card-background-color));
-  font-family: var(--app-font-heading, var(--pico-font-family));
-  font-size: clamp(1.35rem, 4vw, 2.25rem);
-  font-weight: 700;
-  text-align: center;
-}
-
 .csv-cell-context-menu {
   position: fixed;
   z-index: 1500;

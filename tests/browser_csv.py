@@ -671,7 +671,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                 "buffer": bytes([0xC3, 0x28]),
             })
             page.locator("#csv-open-error").wait_for(state="visible")
-            require("not valid UTF-8" in page.locator("#csv-open-error").inner_text(),
+            require("CSV UTF-8" in page.locator("#csv-open-error").inner_text(),
                     "Invalid-encoding error differs")
             require(page.locator("#csv-editor-view").is_hidden(), "Editor opened invalid UTF-8 data")
 

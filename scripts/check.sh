@@ -35,6 +35,8 @@ python3 "$ROOT_DIR/scripts/sync-security-meta.py" --check
 python3 "$ROOT_DIR/tests/validate_template.py"
 python3 "$ROOT_DIR/tests/test_security_meta.py"
 python3 "$ROOT_DIR/vendor/marinos/audit-buttons.py" "$ROOT_DIR" --fail
+# Lists copy, download, file reading and upload code the app does itself; it must list nothing.
+python3 "$ROOT_DIR/vendor/marinos/audit-shared-helpers.py" "$ROOT_DIR" --fail
 
 while IFS= read -r -d '' script; do
   node --check "$script"
