@@ -32,7 +32,6 @@
       openView: get("csv-open-view"),
       editorView: get("csv-editor-view"),
       dropZone: get("csv-drop-zone"),
-      dragOverlay: get("csv-drag-overlay"),
       fileInput: get("csv-file-input"),
       openButton: get("csv-open-button"),
       sampleButton: get("csv-sample-button"),
@@ -147,7 +146,6 @@
       blocked: false,
       busy: false,
       activeCell: null,
-      dragDepth: 0,
       pendingConfirmation: null,
       confirmationReturnFocus: null,
       dependenciesReady: dependencyStatus.available,
@@ -1434,16 +1432,7 @@
         await nextPaint();
         const bytes = state.document.exportBytes();
         const filename = state.document.downloadName();
-        const blob = new Blob([bytes], { type: Engine.delimiterMimeType(state.document.delimiter) });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        anchor.hidden = true;
-        document.body.append(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        marinDownload({ content: bytes, name: filename, type: Engine.delimiterMimeType(state.document.delimiter) });
         state.document.markDownloaded();
         updateAll();
         announce(`Downloaded ${filename}. The opened file was not overwritten.`);
@@ -1668,9 +1657,13 @@
 
     elements.openButton.addEventListener("click", requestFileOpen);
     elements.sampleButton.addEventListener("click", openSample);
-    elements.fileInput.addEventListener("change", () => {
-      const file = elements.fileInput.files?.[0];
-      if (file) withDiscardConfirmation(() => loadFile(file));
+    marinUpload({
+      input: elements.fileInput,
+      accept: [".csv", ".tsv", ".psv", ".txt"],
+      onFile: (file) => {
+        if (!state.busy) withDiscardConfirmation(() => loadFile(file));
+      },
+      onMessage: failOpen,
     });
     elements.openAnotherButton.addEventListener("click", () => withDiscardConfirmation(clearDocumentAndShowOpenView));
     elements.downloadButton.addEventListener("click", downloadCurrent);
@@ -1917,31 +1910,6 @@
         event.preventDefault();
         setWorkspaceMode(Workspace.MODES.NORMAL, { focusToggle: true });
       }
-    });
-
-    document.addEventListener("dragenter", (event) => {
-      if (state.busy || ![...event.dataTransfer?.types || []].includes("Files")) return;
-      event.preventDefault();
-      state.dragDepth += 1;
-      elements.dragOverlay.hidden = false;
-    });
-    document.addEventListener("dragover", (event) => {
-      if (state.busy || ![...event.dataTransfer?.types || []].includes("Files")) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-    });
-    document.addEventListener("dragleave", (event) => {
-      if (![...event.dataTransfer?.types || []].includes("Files")) return;
-      state.dragDepth = Math.max(0, state.dragDepth - 1);
-      if (state.dragDepth === 0) elements.dragOverlay.hidden = true;
-    });
-    document.addEventListener("drop", (event) => {
-      if (state.busy || ![...event.dataTransfer?.types || []].includes("Files")) return;
-      event.preventDefault();
-      state.dragDepth = 0;
-      elements.dragOverlay.hidden = true;
-      const file = event.dataTransfer.files?.[0];
-      if (file) withDiscardConfirmation(() => loadFile(file));
     });
 
     window.addEventListener("beforeunload", (event) => {

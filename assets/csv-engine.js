@@ -101,11 +101,12 @@
     const body = bom ? input.subarray(3) : input;
     let text;
     try {
+      // marin-shared-helpers: allow (Marin CSV refuses a file that is not UTF-8 rather than guess; guessing can change data)
       text = new TextDecoder("utf-8", { fatal: true }).decode(body);
     } catch (error) {
       throw new CsvError(
         "UNSUPPORTED_ENCODING",
-        "This file is not valid UTF-8. Marin CSV refuses to guess an encoding because guessing can change data.",
+        "This file isn't saved as CSV UTF-8, so some characters could change. In Excel, choose Save As, then CSV UTF-8 (Comma delimited), and open the new file here.",
         { cause: String(error) },
       );
     }

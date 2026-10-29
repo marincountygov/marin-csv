@@ -59,10 +59,10 @@
 
           <div id="csv-drop-zone" class="csv-drop-zone">
             <div>
-              <h2 id="start-heading">Open a delimited text file</h2>
-              <p id="csv-drop-help">Drop a file anywhere on this page, or choose a file from your device.</p>
+              <h2 id="start-heading">Upload</h2>
+              <p id="csv-drop-help">Drag and drop a <code>.csv</code>/<code>.tsv</code>/<code>.psv</code>/<code>.txt</code> file anywhere on this page, or use the browse button.</p>
               <div class="csv-open-actions">
-                <button id="csv-open-button" type="button" class="primary" aria-describedby="csv-drop-help csv-local-note">Choose file</button>
+                <button id="csv-open-button" type="button" class="primary" aria-describedby="csv-drop-help csv-local-note">Browse files</button>
                 <button id="csv-sample-button" type="button" class="action-button">Open sample</button>
               </div>
               <input id="csv-file-input" class="csv-visually-hidden" type="file" tabindex="-1" accept=".csv,.tsv,.psv,.txt,text/csv,text/tab-separated-values,text/plain">
@@ -232,10 +232,6 @@
               <span id="csv-recovery-status" data-state="idle">Local recovery starting…</span>
             </div>
           </div>
-        </div>
-
-        <div id="csv-drag-overlay" class="csv-drag-overlay" hidden aria-hidden="true">
-          <div>Drop the delimited text file to open it</div>
         </div>
 
         <div id="csv-cell-context-menu" class="csv-cell-context-menu" role="menu" aria-label="Field actions" hidden>
