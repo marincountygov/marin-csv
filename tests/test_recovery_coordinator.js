@@ -455,3 +455,25 @@ test("blocked upgrades and version changes produce explicit non-destructive stat
   assert.deepEqual(statuses.slice(-2), [Recovery.STATUS.BLOCKED, Recovery.STATUS.RELOAD_REQUIRED]);
   current.destroy();
 });
+
+test("createId never uses Math.random and gives a different id each time with or without browser crypto", () => {
+  const originalRandom = Math.random;
+  const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  Math.random = () => { throw new Error("Math.random must not be used for ids"); };
+  const setCrypto = (value) => Object.defineProperty(globalThis, "crypto", { value, configurable: true, writable: true });
+  try {
+    setCrypto({ randomUUID: () => "uuid-value" });
+    assert.equal(Recovery.createId("document"), "document-uuid-value");
+
+    setCrypto({ getRandomValues: (array) => { array.fill(171); return array; } });
+    assert.match(Recovery.createId("session"), /^session-[0-9a-z]+-(ab){12}$/);
+
+    setCrypto(undefined);
+    const ids = new Set(Array.from({ length: 50 }, () => Recovery.createId("session")));
+    assert.equal(ids.size, 50, "ids made without browser crypto must still be unique");
+  } finally {
+    Math.random = originalRandom;
+    if (cryptoDescriptor) Object.defineProperty(globalThis, "crypto", cryptoDescriptor);
+    else delete globalThis.crypto;
+  }
+});
