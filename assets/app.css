@@ -281,6 +281,7 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
 }
 
 .csv-mode-notice,
+.csv-file-notice,
 .csv-large-mode-notice,
 .csv-recovery-notice {
   margin-block: 0.45rem 0;

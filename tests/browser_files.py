@@ -138,6 +138,23 @@ def run(in_memory: bool = False) -> None:
                     "Dragging plain text showed the file drop overlay")
             require(data_cell(page, 1, 0).inner_text() == "001", "Dragging plain text replaced the open document")
 
+            # A wrong-type file chosen or dropped while a document is open is turned away beside it: the document stays.
+            edit_cell(page, 1, 1, "Ada Lovelace")
+            drop_files(page, [("picture.png", "image/png", "not text")])
+            page.locator("#csv-file-notice").wait_for(state="visible")
+            require("Your open file was not changed" in page.locator("#csv-file-notice").inner_text(),
+                    "The wrong-type notice does not say the open file is safe")
+            require(page.locator("#csv-editor-view").is_visible() and data_cell(page, 1, 1).inner_text() == "Ada Lovelace",
+                    "A dropped picture closed or changed the open document")
+            choose(page, "tool.xlsx", b"PK\x03\x04", "application/vnd.ms-excel")
+            page.locator("#csv-file-notice").wait_for(state="visible")
+            require(page.locator("#csv-editor-view").is_visible() and data_cell(page, 1, 1).inner_text() == "Ada Lovelace",
+                    "Choosing a wrong-type file closed or changed the open document")
+            drop_files(page, [("next.csv", "text/csv", "x,y\n1,2\n")])
+            accept_confirmation(page)
+            page.locator("#csv-editor-view").get_by_text("next.csv", exact=True).first.wait_for()
+            require(page.locator("#csv-file-notice").is_hidden(), "The notice stayed after a new file opened")
+
             # Downloads: the name keeps the delimiter's extension, a file opened with a BOM keeps it, one without gets none.
             for name, payload, extension in (
                 ("with-bom.csv", BOM + b"id,name\n001,Ada\n", ".csv"),
