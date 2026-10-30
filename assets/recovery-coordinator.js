@@ -51,11 +51,18 @@
     return value;
   }
 
+  let idCounter = 0;
+
+  // The browser's random source when it has one; otherwise the time plus a counter, which is unique within a page.
   function createId(prefix = "csv") {
     const cryptoObject = typeof crypto !== "undefined" ? crypto : null;
     if (typeof cryptoObject?.randomUUID === "function") return `${prefix}-${cryptoObject.randomUUID()}`;
-    const random = Math.random().toString(36).slice(2);
-    return `${prefix}-${Date.now().toString(36)}-${random}`;
+    if (typeof cryptoObject?.getRandomValues === "function") {
+      const bytes = cryptoObject.getRandomValues(new Uint8Array(12));
+      return `${prefix}-${Date.now().toString(36)}-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+    }
+    idCounter += 1;
+    return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`;
   }
 
   function defaultSessionStorage() {
