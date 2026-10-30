@@ -14,6 +14,8 @@ import sys
 from threading import Thread
 from urllib.parse import urlsplit
 
+from html_fixture import remove_from_html
+
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "/marin-csv-test/"
 MANIFEST = json.loads((ROOT / "vendor/marinos/manifest.json").read_text(encoding="utf-8"))
@@ -133,9 +135,7 @@ def fixture_page(context, current_page, url: str, *, javascript: bool = True, re
     html = (ROOT / "index.html").read_text(encoding="utf-8")
     # Component-only fixture: it inlines scripts/CSS, so it cannot enforce the app CSP.
     # The separate browser_security.py fixture keeps the exact policies for real CSP probes.
-    html = re.sub(r'<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>', '', html, flags=re.I)
-    html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S)
-    html = re.sub(r'<link\b[^>]*rel="stylesheet"[^>]*>', '', html)
+    html = remove_from_html(html, "csp", "scripts", "stylesheets")
     css = (ROOT / "vendor/marinos/marinos.css").read_text(encoding="utf-8")
     for relative in MANIFEST["fontPathContract"]:
         font = (ROOT / "vendor/marinos" / relative).read_bytes()
