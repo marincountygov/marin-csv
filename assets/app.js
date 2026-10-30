@@ -41,6 +41,7 @@
       fileHeading: get("csv-file-heading"),
       fileSummary: get("csv-file-summary"),
       modeNotice: get("csv-mode-notice"),
+      fileNotice: get("csv-file-notice"),
       largeModeNotice: get("csv-large-mode-notice"),
       operation: get("csv-operation-status"),
       operationProgress: get("csv-operation-progress"),
@@ -941,6 +942,7 @@
       elements.grid.replaceChildren();
       elements.pager.hidden = true;
       elements.largeModeNotice.hidden = true;
+      elements.fileNotice.hidden = true;
       elements.selectionStatus.textContent = "";
       elements.moreMenu.open = false;
       elements.fileDetails.open = false;
@@ -961,6 +963,18 @@
       elements.openError.focus();
     }
 
+    // A file the upload helper turns away (wrong type) must not close the document being edited: say so beside it.
+    function rejectFile(message) {
+      if (!state.document) {
+        failOpen(message);
+        return;
+      }
+      announce(message);
+      elements.fileNotice.textContent = `${message} Your open file was not changed.`;
+      elements.fileNotice.hidden = false;
+      elements.fileNotice.focus();
+    }
+
     function failOpen(message) {
       resetDocumentState();
       announce(message);
@@ -969,6 +983,7 @@
     }
 
     function showEditorView() {
+      elements.fileNotice.hidden = true;
       elements.openView.hidden = true;
       elements.editorView.hidden = false;
       document.body.dataset.csvView = "editor";
@@ -1663,7 +1678,7 @@
       onFile: (file) => {
         if (!state.busy) withDiscardConfirmation(() => loadFile(file));
       },
-      onMessage: failOpen,
+      onMessage: rejectFile,
     });
     elements.openAnotherButton.addEventListener("click", () => withDiscardConfirmation(clearDocumentAndShowOpenView));
     elements.downloadButton.addEventListener("click", downloadCurrent);

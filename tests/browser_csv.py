@@ -212,7 +212,8 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             promote.dblclick()
             promote_editor = promote.locator("textarea.csv-tabulator-editor")
             promote_editor.wait_for()
-            promote_editor.press("Control+End")
+            # Put the caret at the end by setting it, because Control+End is not "go to the end" on every platform.
+            promote_editor.evaluate("editor => editor.setSelectionRange(editor.value.length, editor.value.length)")
             promote_editor.press("Alt+Enter")
             require(promote_editor.get_attribute("data-multiline") == "true",
                     "Alt+Enter did not switch the editor to multiline mode")
@@ -284,7 +285,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                 }, {capture: true, once: true});
             }""")
             page.keyboard.press("Control+C")
-            page.wait_for_function("window.__marinCsvCopied.some(([type]) => type === 'text/plain')")
+            page.wait_for_function("() => window.__marinCsvCopied.some(([type]) => type === 'text/plain')")
             copied_plain = page.evaluate(
                 "window.__marinCsvCopied.find(([type]) => type === 'text/plain')?.[1]"
             )
@@ -353,45 +354,45 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
 
             # Row and column commands use physical coordinates, rebuild the
             # real grid, restore focus, and remain undoable.
-            data_cell(page, 1, 0).focus()
+            data_cell(page, 1, 0).click()
             page.locator("#csv-add-row-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '4'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '4'")
             page.wait_for_function("""() => {
                 const active = document.activeElement;
                 return active?.dataset?.documentRowIndex === '2' && active?.dataset?.columnIndex === '0';
             }""")
             page.locator("#csv-undo-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '3'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '3'")
 
-            data_cell(page, 1, 0).focus()
+            data_cell(page, 1, 0).click()
             page.locator("#csv-add-column-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '9'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '9'")
             page.wait_for_function("""() => {
                 const active = document.activeElement;
                 return active?.dataset?.documentRowIndex === '1' && active?.dataset?.columnIndex === '1';
             }""")
             page.locator("#csv-undo-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '8'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '8'")
 
-            data_cell(page, 2, 0).focus()
+            data_cell(page, 2, 0).click()
             open_more_menu(page)
             page.locator("#csv-delete-row-button").click()
             require(page.locator("#csv-confirm-dialog[open]").count() == 1,
                     "Delete-row confirmation did not open")
             page.locator("#csv-confirm-accept").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '2'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '2'")
             page.locator("#csv-undo-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '3'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '3'")
 
-            data_cell(page, 1, 1).focus()
+            data_cell(page, 1, 1).click()
             open_more_menu(page)
             page.locator("#csv-delete-column-button").click()
             require(page.locator("#csv-confirm-dialog[open]").count() == 1,
                     "Delete-column confirmation did not open")
             page.locator("#csv-confirm-accept").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '7'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '7'")
             page.locator("#csv-undo-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '8'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '8'")
 
             # Filtering and sorting are presentation-only.
             page.locator("#csv-filter-input").fill("000124")
@@ -499,20 +500,20 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             require(page.locator("#csv-confirm-title").inner_text() == "Delete file row 3?",
                     "Context delete-row did not retain the clicked physical row")
             page.locator("#csv-confirm-accept").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '2'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '2'")
             require(data_cell(page, 2, 0).count() == 0,
                     "Context delete-row removed a different physical row")
             page.locator("#csv-undo-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '3'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-rowcount') === '3'")
 
             data_cell(page, 1, 1).click(button="right")
             page.get_by_role("menuitem", name="Delete column…").click()
             require(page.locator("#csv-confirm-title").inner_text() == "Delete column B?",
                     "Context delete-column did not target the clicked column")
             page.locator("#csv-confirm-accept").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '7'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '7'")
             page.locator("#csv-undo-button").click()
-            page.wait_for_function("document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '8'")
+            page.wait_for_function("() => document.querySelector('#csv-grid')?.getAttribute('aria-colcount') === '8'")
 
             if screenshots:
                 data_cell(page, 1, 0).click(button="right")
@@ -604,7 +605,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
                 "() => document.querySelector(`.tabulator-cell[data-document-row-index='1'][data-column-index='0']`)?.innerText === '009'"
             )
             require(cell_text(page, 1, 1) == "04-05", "TSV paste second cell differs")
-            page.wait_for_function("document.querySelector('#app-status-message')?.textContent.includes('2 cells pasted')")
+            page.wait_for_function("() => document.querySelector('#app-status-message')?.textContent.includes('2 cells pasted')")
             page.locator("#csv-undo-button").click()
             page.wait_for_function(
                 "() => document.querySelector(`.tabulator-cell[data-document-row-index='1'][data-column-index='0']`)?.innerText === '001'"
@@ -763,7 +764,7 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             if screenshots:
                 page.screenshot(path=str(screenshots / "csv-paged-desktop-light.png"), full_page=True)
             page.locator("#csv-next-page-button").click()
-            page.wait_for_function("document.querySelector('#csv-page-input')?.value === '2'")
+            page.wait_for_function("() => document.querySelector('#csv-page-input')?.value === '2'")
             page.locator("#csv-operation-status").wait_for(state="hidden")
             page.locator(".tabulator-cell[data-document-row-index='1001'][data-column-index='0']").wait_for()
             require(cell_text(page, 1001, 0) == "1000",
