@@ -134,7 +134,7 @@ def fixture_page(context, current_page, url: str, *, javascript: bool = True, re
     # Component-only fixture: it inlines scripts/CSS, so it cannot enforce the app CSP.
     # The separate browser_security.py fixture keeps the exact policies for real CSP probes.
     html = re.sub(r'<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>', '', html, flags=re.I)
-    html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S)
+    html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S | re.I)
     html = re.sub(r'<link\b[^>]*rel="stylesheet"[^>]*>', '', html)
     css = (ROOT / "vendor/marinos/marinos.css").read_text(encoding="utf-8")
     for relative in MANIFEST["fontPathContract"]:
