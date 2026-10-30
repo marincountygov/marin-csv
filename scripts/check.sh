@@ -60,6 +60,7 @@ printf 'CSV preservation engine, local recovery, large-file policy, Papa Parse i
 case "$BROWSER_MODE" in
   http)
     python3 "$ROOT_DIR/tests/browser_csv.py"
+    python3 "$ROOT_DIR/tests/browser_files.py"
     python3 "$ROOT_DIR/tests/browser_workspace.py"
     python3 "$ROOT_DIR/tests/browser_recovery.py"
     python3 "$ROOT_DIR/tests/browser_smoke.py"
@@ -67,6 +68,7 @@ case "$BROWSER_MODE" in
     ;;
   in-memory)
     python3 "$ROOT_DIR/tests/browser_csv.py" --in-memory
+    python3 "$ROOT_DIR/tests/browser_files.py" --in-memory
     python3 "$ROOT_DIR/tests/browser_workspace.py" --in-memory
     python3 "$ROOT_DIR/tests/browser_recovery.py" --in-memory
     python3 "$ROOT_DIR/tests/browser_smoke.py" --in-memory
