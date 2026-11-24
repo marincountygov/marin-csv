@@ -247,13 +247,29 @@ body[data-csv-view="editor"][data-csv-route="start"] main#main.app-main {
   min-inline-size: 0;
 }
 
+.csv-workspace-file-title {
+  display: flex;
+  min-inline-size: 0;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  align-items: center;
+}
+
 .csv-workspace-file h2 {
   overflow: hidden;
+  min-inline-size: 0;
   margin: 0;
   font-size: clamp(1rem, 1.4vw, 1.25rem);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.csv-filename-button {
+  flex: 0 0 auto;
+  min-block-size: 2rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
 }
 
 .csv-file-summary {

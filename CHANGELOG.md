@@ -1,5 +1,25 @@
 # Changelog
 
+## CSV-7 — 2026-11-24
+
+- Update the vendored Marin App Shell from 1.24.0 to 2.2.0 and the pinned Marin
+  UI baseline to 1.38.0.
+- Add **Create new CSV** between **Browse files** and **Open sample**.
+- Open new documents as a blank one-column workspace with first-row column-name
+  mode enabled, comma delimiter, UTF-8 without BOM, CRLF for new row boundaries,
+  and no final line ending.
+- Generate default filenames in the form
+  `marin-csv-YYYY-MM-DD-HHMMSS.csv` from the user's local date and time.
+- Add an **Edit filename** dialog for new documents. A `.csv` extension is added
+  when the entered name has no extension.
+- Use the chosen filename for the first download and deterministic numeric
+  suffixes for repeated downloads. Existing opened-file `-copy` and `-edited`
+  naming remains unchanged.
+- Preserve new-document identity, filename changes, download state, and blank
+  source bytes through transfer and browser-local recovery records.
+- Add engine, recovery, browser, filename-validation, action-order, and download
+  regression coverage for the new-document workflow.
+
 ## CSV-6 — 2026-10-15
 
 - Add an application-owned field context menu for right-click, touch hold,

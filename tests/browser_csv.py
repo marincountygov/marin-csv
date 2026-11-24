@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the real Papa Parse and Tabulator Marin CSV workflow through CSV-6."""
+"""Exercise the real Papa Parse and Tabulator Marin CSV workflow through CSV-7."""
 from __future__ import annotations
 
 import argparse
@@ -889,7 +889,7 @@ def main() -> None:
                         help="Run a component fixture when HTTP browser navigation is unavailable")
     args = parser.parse_args()
     run(args.screenshots, args.in_memory)
-    print("Marin CSV local-file workflow (CSV-6): PASS")
+    print("Marin CSV local-file workflow (CSV-7): PASS")
     if args.in_memory:
         print("NOT TESTED in this mode: HTTP asset loading, CSP enforcement, and deferred-script timing.")
 

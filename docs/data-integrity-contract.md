@@ -1,7 +1,7 @@
 # Marin CSV data-integrity contract
 
-Status: authoritative for CSV-6  
-Last reviewed: 2026-10-15
+Status: authoritative for CSV-7
+Last reviewed: 2026-11-24
 
 ## Governing rule
 
@@ -26,6 +26,32 @@ choose any supported delimiter before editing, which reparses the original
 bytes. The app warns without repairing when the interpretation is ambiguous or
 produces only one column. It does not infer whether the first row is a header:
 header mode is on by default and remains user-controlled.
+
+## New browser documents
+
+**Create new CSV** creates a fully editable document without source-file
+bytes. The document uses:
+
+- comma delimiter;
+- strict UTF-8 without a BOM;
+- CRLF for row boundaries created later;
+- no final line ending; and
+- first-row column-name mode.
+
+The model contains one blank first-row scaffold so the grid has one editable
+column. That scaffold is not CSV content by itself: before any content edit,
+`exportBytes()` returns a zero-length byte array and Papa Parse validation is
+performed against an empty record set.
+
+The default filename is `marin-csv-YYYY-MM-DD-HHMMSS.csv`, based on the local
+clock when the document is created. Filename changes are document metadata,
+not fields. The interface rejects empty names, path separators, control
+characters, and `.` or `..`; it adds `.csv` when no extension is supplied.
+
+The first download of a new document uses its chosen filename exactly.
+Subsequent downloads append `-2`, `-3`, and so on before the extension. A new
+document is considered undownloaded until its first download, even when its
+serialized content is empty.
 
 ## Mandatory structural profile
 
@@ -60,7 +86,7 @@ The preservation engine retains:
 - quote preference flags;
 - physical row order;
 - edit history; and
-- the current download sequence.
+- the current download sequence and new-document origin state.
 
 Tabulator receives view data only. It may not own the source bytes, serialize
 the file, or redefine physical row coordinates.
@@ -106,6 +132,11 @@ After an edit, Marin CSV:
 A field is quoted when required. A field that was quoted originally remains
 quoted when its row is reconstructed. Marin CSV does not add a quote merely to
 change how another application may infer a data type.
+
+A newly inserted one-field blank record is serialized as `""` so it remains a
+real record rather than becoming indistinguishable from a zero-byte document.
+When that synthetic blank field is replaced with ordinary text, the temporary
+quote preference is removed; normal CSV quoting rules then apply.
 
 Immediately before download, the current serialized editable document is
 independently parsed again with Papa Parse and compared cell-for-cell with the
@@ -222,10 +253,11 @@ A revision is locally safe only after the IndexedDB transaction containing its
 journal entry or approved snapshot has completed and the revision sequence is
 contiguous. An older or stale write cannot advance the safe revision.
 
-Recovery must preserve exact strings, physical row/column structure, delimiter,
-BOM, newline conventions, trailing-newline choice, header mode, dirty/download
-state, and preview totals. It intentionally does not restore undo/redo or
-transient UI state.
+Recovery must preserve exact strings, physical row/column structure, filename,
+new-document origin state, delimiter, BOM, newline conventions,
+trailing-newline choice, header mode, dirty/download state, download count, and
+preview totals. It intentionally does not restore undo/redo or transient UI
+state.
 
 If newer recovery material is damaged or unsupported, Marin CSV may use the
 last valid snapshot plus contiguous journal and open that state read-only. It

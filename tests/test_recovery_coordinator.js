@@ -65,6 +65,35 @@ test("journaled edits and snapshots survive a refresh with empty undo history", 
   refreshed.destroy();
 });
 
+test("new CSV filename and download state survive local recovery", async () => {
+  const store = new Store.MemoryRecoveryStore();
+  const owner = coordinator(store, new MemorySessionStorage());
+  await owner.initialize();
+  const documentModel = Engine.CsvDocument.createBlank({ filename: "new.csv" });
+  const started = await owner.startNewDocument(documentModel, { policyMode: "standard" });
+
+  documentModel.setFilename("county-data.csv");
+  documentModel.markDownloaded();
+  await owner.flush();
+
+  const bundle = await store.getBundle(started.documentId);
+  assert.equal(bundle.sourceRecord.newDocument, true);
+  assert.equal(bundle.documentRecord.filename, "county-data.csv");
+  assert.equal(bundle.documentRecord.workingStatus, "downloaded");
+  assert.equal(bundle.documentRecord.lastDownloadedRevision, 2);
+
+  owner.destroy();
+  const reader = coordinator(store, new MemorySessionStorage());
+  await reader.initialize();
+  const restored = await reader.restoreDocument(started.documentId);
+  assert.equal(restored.document.newDocument, true);
+  assert.equal(restored.document.filename, "county-data.csv");
+  assert.equal(restored.document.downloadCount, 1);
+  assert.equal(restored.document.hasUndownloadedChanges, false);
+  assert.equal(decoded(restored.document), "");
+  reader.destroy();
+});
+
 test("rapid edits are recoverable from a snapshot plus a contiguous journal", async () => {
   const store = new Store.MemoryRecoveryStore();
   const owner = coordinator(store, new MemorySessionStorage(), { debounceMs: 100000 });

@@ -71,6 +71,70 @@ test("repeated downloads receive deterministic new filenames", () => {
   assert.equal(documentModel.downloadName(), "records-edited-3.csv");
 });
 
+test("new CSV documents start blank, use timestamped names, and preserve download state", () => {
+  const now = new Date(2026, 10, 24, 9, 5, 7);
+  assert.equal(Engine.defaultNewFilename(now), "marin-csv-2026-11-24-090507.csv");
+
+  const documentModel = Engine.CsvDocument.createBlank({ now, papa: Papa });
+  assert.equal(documentModel.filename, "marin-csv-2026-11-24-090507.csv");
+  assert.equal(documentModel.newDocument, true);
+  assert.equal(documentModel.headerMode, true);
+  assert.equal(documentModel.rowCount, 1);
+  assert.equal(documentModel.dataRowCount, 0);
+  assert.equal(documentModel.columnCount, 1);
+  assert.equal(documentModel.serializeText(), "");
+  assert.deepEqual(documentModel.exportBytes(), new Uint8Array());
+  assert.equal(documentModel.hasUndownloadedChanges, true);
+  assert.equal(documentModel.downloadName(), "marin-csv-2026-11-24-090507.csv");
+  assert.equal(documentModel.validateCurrentWithPapa(Papa).matched, true);
+
+  assert.equal(documentModel.setFilename("county-data.csv"), true);
+  assert.equal(documentModel.downloadName(), "county-data.csv");
+  documentModel.setHeaders(["id"]);
+  documentModel.addRow(1);
+  documentModel.setCell(1, 0, "001");
+  assert.equal(documentModel.serializeText(), "id\r\n001");
+  assert.equal(documentModel.validateCurrentWithPapa(Papa).matched, true);
+
+  documentModel.markDownloaded();
+  assert.equal(documentModel.hasUndownloadedChanges, false);
+  assert.equal(documentModel.downloadName(), "county-data-2.csv");
+
+  documentModel.undo();
+  assert.equal(documentModel.hasUndownloadedChanges, true);
+  documentModel.redo();
+  assert.equal(documentModel.hasUndownloadedChanges, false);
+
+  documentModel.setFilename("renamed.csv");
+  assert.equal(documentModel.hasUndownloadedChanges, true);
+  assert.equal(documentModel.downloadName(), "renamed-2.csv");
+});
+
+test("new CSV transfer records preserve their document type and filename", () => {
+  const documentModel = Engine.CsvDocument.createBlank({
+    filename: "new-data.csv",
+    papa: Papa,
+  });
+  documentModel.setHeaders(["name"]);
+  const restored = Engine.documentFromTransfer(documentModel.toTransfer());
+
+  assert.equal(restored.newDocument, true);
+  assert.equal(restored.filename, "new-data.csv");
+  assert.equal(restored.serializeText(), "name");
+  assert.equal(restored.downloadName(), "new-data.csv");
+});
+
+test("an explicitly added blank record remains distinct from an untouched empty CSV", () => {
+  const documentModel = Engine.CsvDocument.createBlank({ filename: "blank-row.csv", papa: Papa });
+  documentModel.addRow(1);
+  assert.equal(documentModel.serializeText(), '\r\n""');
+  assert.equal(documentModel.validateCurrentWithPapa(Papa).matched, true);
+
+  documentModel.setCell(1, 0, "001");
+  assert.equal(documentModel.serializeText(), "\r\n001");
+  assert.equal(documentModel.rows[1].quoteFlags[0], false);
+});
+
 test("empty, header-only, blank-record, null, and unusual Unicode content remain distinct", () => {
   const empty = Engine.CsvDocument.fromBytes(bytes(""), { filename: "empty.csv" });
   assert.equal(empty.rowCount, 0);

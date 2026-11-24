@@ -63,6 +63,7 @@
               <p id="csv-drop-help">Drag and drop a <code>.csv</code>/<code>.tsv</code>/<code>.psv</code>/<code>.txt</code> file anywhere on this page, or use the browse button.</p>
               <div class="csv-open-actions">
                 <button id="csv-open-button" type="button" class="primary" aria-describedby="csv-drop-help csv-local-note">Browse files</button>
+                <button id="csv-new-button" type="button" class="action-button">Create new CSV</button>
                 <button id="csv-sample-button" type="button" class="action-button">Open sample</button>
               </div>
               <input id="csv-file-input" class="csv-visually-hidden" type="file" tabindex="-1" accept=".csv,.tsv,.psv,.txt,text/csv,text/tab-separated-values,text/plain">
@@ -94,7 +95,10 @@
                 <span class="csv-workspace-app-name">Marin CSV</span>
                 <span class="csv-workspace-divider" aria-hidden="true"></span>
                 <div class="csv-workspace-file">
-                  <h2 id="csv-file-heading" tabindex="-1">Untitled CSV</h2>
+                  <div class="csv-workspace-file-title">
+                    <h2 id="csv-file-heading" tabindex="-1">Untitled CSV</h2>
+                    <button id="csv-filename-button" type="button" class="action-button csv-filename-button" hidden>Edit filename</button>
+                  </div>
                   <p id="csv-file-summary" class="csv-file-summary"></p>
                 </div>
               </div>
@@ -289,6 +293,22 @@
             <div class="csv-dialog-actions">
               <button type="button" class="action-button" data-close-dialog="csv-headers-dialog">Cancel</button>
               <button type="submit" value="save">Save column names</button>
+            </div>
+          </form>
+        </dialog>
+
+        <dialog id="csv-filename-dialog" class="csv-dialog" aria-labelledby="csv-filename-title" aria-describedby="csv-filename-description">
+          <form id="csv-filename-form" method="dialog" novalidate>
+            <h2 id="csv-filename-title">Edit filename</h2>
+            <p id="csv-filename-description">This name is used when you download the new CSV. Marin CSV adds <code>.csv</code> when no file extension is entered.</p>
+            <label for="csv-filename-input">
+              Filename
+              <input id="csv-filename-input" type="text" required maxlength="240" autocomplete="off" spellcheck="false" aria-describedby="csv-filename-description csv-filename-error">
+            </label>
+            <p id="csv-filename-error" class="csv-inline-error" role="alert" hidden></p>
+            <div class="csv-dialog-actions">
+              <button type="button" class="action-button" data-close-dialog="csv-filename-dialog">Cancel</button>
+              <button type="submit" value="save">Save filename</button>
             </div>
           </form>
         </dialog>

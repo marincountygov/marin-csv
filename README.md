@@ -5,13 +5,16 @@ semicolon-, and pipe-delimited text files. It runs locally in the browser and
 treats every field as text, avoiding silent data conversion that spreadsheet
 software can introduce into delimited files.
 
-CSV-6 adds a custom field context menu while retaining CSV-5 common delimiter
-support and CSV-4 browser-local workspace recovery. Right-click, long-press,
-or press Shift+F10 on a data field to edit or clear it, apply an exact
-column-value filter, or delete its physical row or column. All mutations still
-pass through the preservation engine, undo/redo, and IndexedDB recovery paths.
-Recovery remains distinct from **Download file**: IndexedDB preserves a working
-copy inside the browser; a download creates the user-controlled file.
+CSV-7 adds **Create new CSV** and updates the application to Marin App Shell
+2.2.0. A new CSV opens as a blank, one-column workspace without requiring a
+file upload. Its default name includes the current local date and time, and the
+name can be edited before download. The CSV-6 field context menu, CSV-5 common
+delimiter support, and CSV-4 browser-local recovery remain in place.
+
+All document changes still pass through the preservation engine, undo/redo,
+and IndexedDB recovery paths. Recovery remains distinct from **Download file**:
+IndexedDB preserves a working copy inside the browser; a download creates the
+user-controlled file.
 
 The application remains an Alpha build.
 
@@ -19,6 +22,8 @@ The application remains an Alpha build.
 
 - Open comma-, tab-, semicolon-, and pipe-delimited files locally; file
   contents are not uploaded.
+- Create a blank CSV locally, name it, edit it, and download it without first
+  choosing a source file.
 - Preserve leading zeros, long digit strings, date-like text,
   scientific-notation-like text, Boolean/null-like text, and formula-like text.
 - Download an untouched file as the exact original bytes.
@@ -38,23 +43,31 @@ delimited-file behavior is in
 [`docs/data-integrity-contract.md`](docs/data-integrity-contract.md). The
 delimiter specification is in
 [`docs/csv-5-implementation-spec.md`](docs/csv-5-implementation-spec.md).
-The CSV-6 interaction specification is in
+The CSV-7 create-new specification is in
+[`docs/csv-7-implementation-spec.md`](docs/csv-7-implementation-spec.md), the
+CSV-6 interaction specification remains in
 [`docs/csv-6-implementation-spec.md`](docs/csv-6-implementation-spec.md), and
 the recovery specification remains in
 [`docs/csv-4-implementation-spec.md`](docs/csv-4-implementation-spec.md).
 
-## CSV-6 capabilities
+## CSV-7 capabilities
 
 The current build includes:
 
 - a full-width, viewport-aware spreadsheet workspace with normal and in-page
   expanded modes;
+- a **Create new CSV** action between **Browse files** and **Open sample**;
+- a blank one-column starting workspace with a local date-and-time filename,
+  an **Edit filename** control, and `.csv` added when no extension is entered;
+- the chosen filename on the first download and deterministic numbered names
+  on later downloads;
 - strict UTF-8 preservation for four supported delimiters, exact untouched
   downloads, and convention-preserving edited downloads;
 - independent Papa Parse validation and a text-only Tabulator grid;
 - standard, paged, and bounded read-only preview modes;
 - direct editing, block paste, row/column operations, undo/redo, find/replace,
-  first-row header mode, view-only sorting/filtering, and new-file downloads;
+  first-row header mode, view-only sorting/filtering, and new-document
+  downloads;
 - a custom field context menu with mouse, keyboard, and touch access;
 - Edit field, Clear field, exact-value filter, Delete row, and Delete column
   commands that use stable physical document coordinates;
@@ -81,6 +94,10 @@ The current build includes:
 
 See:
 
+- [`docs/csv-7-implementation-spec.md`](docs/csv-7-implementation-spec.md)
+- [`docs/csv-7-findings.md`](docs/csv-7-findings.md)
+- [`docs/csv-7-test-report.md`](docs/csv-7-test-report.md)
+- [`docs/csv-7-manual-review.md`](docs/csv-7-manual-review.md)
 - [`docs/csv-6-implementation-spec.md`](docs/csv-6-implementation-spec.md)
 - [`docs/csv-6-findings.md`](docs/csv-6-findings.md)
 - [`docs/csv-6-test-report.md`](docs/csv-6-test-report.md)
@@ -199,7 +216,7 @@ service-level guarantees.
 ## Architecture
 
 ```text
-Local file bytes
+Local file bytes or a new blank document
       |
       v
 Strict profile + same-origin worker when available
@@ -255,8 +272,8 @@ committing.
 
 ## MarinOS baseline
 
-Created from Marin App Template 2.0.8. The app vendors Marin App Shell 1.12.2,
-including the Marin UI 1.25.0 baseline. Do not edit `vendor/marinos/` directly.
+Created from Marin App Template 2.0.8. The app vendors Marin App Shell 2.2.0,
+including the Marin UI 1.38.0 baseline. Do not edit `vendor/marinos/` directly.
 
 ## Security and privacy
 
@@ -275,5 +292,5 @@ encrypted and is not an archival backup.
 - **Owner:** County of Marin
 - **Audience:** County staff
 - **Repository:** `marincountygov/marin-csv`
-- **Status:** Alpha / CSV-6 cell context menu
+- **Status:** Alpha / CSV-7 create new CSV
 - **Deployment target:** GitHub Pages

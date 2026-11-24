@@ -6,8 +6,8 @@
     return;
   }
 
-  const SHELL_VERSION = "1.24.0";
-  const MARIN_UI_VERSION = "1.34.0";
+  const SHELL_VERSION = "2.2.0";
+  const MARIN_UI_VERSION = "1.38.0";
   const MARINOS_URL = "https://marincountygov.github.io/marin-os/";
   const MARINOS_STATUS_URL = `${MARINOS_URL}#status`;
   const CATALOG_URL = `${MARINOS_URL}catalog.json`;
@@ -1181,11 +1181,11 @@
   // panel-right-open icon while the panel is open and panel-left-open while it is hidden (unless the button holds
   // its own SVGs marked data-filter-icon="open" and "closed"), sets aria-expanded, data-open on the panel and
   // data-filters ("open" or "closed") on the layout, starts open on wide screens (a choice made there is remembered
-  // per app and toggle in this browser) and closed up to 850px, names the button "Filters" (or data-filter-label)
+  // per app and toggle in this browser) and closed up to 850px, names the button "Filter" (or data-filter-label)
   // plus ", N active" from data-filter-active, and dispatches a bubbling "marin-filters-change" event
   // ({ detail: { open, button, panel } }) so an app can resize anything sized by the results. Hiding the panel
   // never changes a filter. The button has no visible text, so its name is its label.
-  const filterToggles = document.querySelectorAll("button[data-filter-toggle]");
+  function setupFilterToggles(filterToggles) {
   if (filterToggles.length) {
     const narrowFilters = window.matchMedia("(max-width: 850px)");
 
@@ -1224,7 +1224,7 @@
 
     function nameFilterToggle(button) {
       const count = Number(button.dataset.filterActive) || 0;
-      const base = button.dataset.filterLabel || "Filters";
+      const base = button.dataset.filterLabel || "Filter";
       const name = count ? `${base}, ${count} active` : base;
       button.setAttribute("aria-label", name);
       button.title = name;
@@ -1251,10 +1251,588 @@
         const panel = document.getElementById(button.getAttribute("aria-controls"));
         if (panel) setFilterPanel(button, panel.dataset.open !== "true", true);
       });
+      // On a narrow screen the open panel sits over the results: Escape closes it and returns to its button.
+      document.getElementById(button.getAttribute("aria-controls"))?.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || !narrowFilters.matches || event.defaultPrevented) return;
+        setFilterPanel(button, false, true);
+        button.focus();
+      });
     });
     narrowFilters.addEventListener("change", applyFilterDefaults);
     applyFilterDefaults();
   }
+  }
+  setupFilterToggles(document.querySelectorAll("button[data-filter-toggle]"));
+
+  // Filter column drawn from filters.json: <div class="search-side" data-filter-column="filters.json"> inside a
+  // .search-layout. The file is checked against schemas/filter-panel.schema.json; the shell draws the toggle
+  // button, the "Filter" title, the Reset button, the "Search" field and each group, so no app writes the words
+  // or the markup. Options come from the app's own data (options.from) or from the file's own list.
+  //  - data-filter-name (default: the app id) names the toggle and its saved open/closed choice.
+  //  - Choices live in the address (q, and each group's param; a date range uses param-from and param-to).
+  //  - The column element gets filterState (search and every group's choice), setCounts(groupId, {value: n}) and
+  //    reset(), and dispatches bubbling events: "marin-filter-ready" once drawn and "marin-filter-change"
+  //    ({ detail: { state, source } }) when a choice changes (search waits for a pause in typing).
+  //  - Options are never disabled, even with a count of 0, so they stay reachable by keyboard and screen reader.
+  //  - The toggle's name carries the active count ("Filter, 3 active"). Reset says "Filters reset." through
+  //    #app-status-message (or the column's own status line) and leaves focus on the Reset button; the app's own
+  //    results status says how many results are left.
+  const FILTER_SEARCH_PAUSE = 400;
+
+  async function renderFilterColumn(column) {
+    const getJson = async (path) => {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`${path}: ${response.status}`);
+      return response.json();
+    };
+    const make = (tag, attributes = {}, children = []) => {
+      const node = document.createElement(tag);
+      Object.entries(attributes).forEach(([key, value]) => {
+        if (value === false || value == null) return;
+        if (key === "text") node.textContent = value;
+        else node.setAttribute(key, value === true ? "" : value);
+      });
+      node.append(...children);
+      return node;
+    };
+    const compare = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+
+    const config = await getJson(column.dataset.filterColumn);
+    const name = column.dataset.filterName || document.body.dataset.appId || "filters";
+    const panelId = `${name}-filter-panel`;
+    const titleId = `${panelId}-title`;
+    const url = new URL(window.location.href);
+
+    async function resolveOptions(spec, groupBy = []) {
+      if (spec.app) return [];
+      if (spec.values) return spec.values.map((one) => ({ value: String(one.value), label: one.label, count: null, hidden: one.hidden === true }));
+      const data = await getJson(spec.from);
+      const records = spec.records ? spec.records.split(".").reduce((found, key) => found?.[key], data) : data;
+      const found = new Map();
+      (Array.isArray(records) ? records : []).forEach((record) => {
+        [].concat(record?.[spec.valueField] ?? []).forEach((value) => {
+          if (value === "" || value == null) return;
+          const key = String(value);
+          const label = spec.labelField && !Array.isArray(record[spec.valueField]) ? String(record[spec.labelField] ?? key) : key;
+          const parent = spec.parentField && !Array.isArray(record[spec.valueField]) && record[spec.parentField] ? String(record[spec.parentField]) : "";
+          const entry = found.get(key) || { value: key, label, count: 0, parent, path: groupBy.map((field) => String(record[field] ?? "Other")) };
+          entry.count += 1;
+          found.set(key, entry);
+        });
+      });
+      // "order": "data" keeps the choices in the order the file lists them, instead of A to Z.
+      return spec.order === "data" ? [...found.values()] : [...found.values()].sort((a, b) => compare(a.label, b.label));
+    }
+
+    const groups = await Promise.all(
+      config.groups.map(async (group) => ({ ...group, param: group.param || group.id, list: group.options ? await resolveOptions(group.options, group.groupBy) : [] }))
+    );
+
+    const latest = (group) => group.list.map((one) => one.value).sort(compare).pop() || "";
+    const defaultFor = (group) => {
+      if (group.type === "checkbox" || group.type === "nested-checkbox") return [...(group.default || [])];
+      if (group.type === "date-range") return { from: "", to: "" };
+      if (group.type === "radio" || group.type === "select") return group.default === "latest" ? latest(group) : group.default ?? "";
+      return "";
+    };
+    const isMany = (group) => group.type === "checkbox" || group.type === "nested-checkbox";
+    // "address": false in the file keeps every choice out of the address (a table's own filter, say).
+    const addressOn = config.address !== false;
+    // "fromParam" and "toParam" name a date range's address parameters, for an app whose links already used them.
+    const dateParams = (group) => [group.fromParam || `${group.param}-from`, group.toParam || `${group.param}-to`];
+    const fromAddress = (group) => {
+      const params = url.searchParams;
+      if (!addressOn) return defaultFor(group);
+      // "separator" reads a list written in one parameter ("a,b"), as an app's older shared links did.
+      if (isMany(group)) return params.has(group.param) ? params.getAll(group.param).flatMap((one) => (group.separator ? one.split(group.separator) : [one])).filter(Boolean) : defaultFor(group);
+      if (group.type === "date-range") {
+        // Only real dates count, and a range written backwards is turned round, as an app's older links expected.
+        const [fromKey, toKey] = dateParams(group);
+        const day = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(value || "") ? value : "");
+        const range = { from: day(params.get(fromKey)), to: day(params.get(toKey)) };
+        return range.from && range.to && range.from > range.to ? { from: range.to, to: range.from } : range;
+      }
+      return params.has(group.param) ? params.get(group.param) : defaultFor(group);
+    };
+
+    const state = { search: addressOn ? url.searchParams.get("q") || "" : "", groups: {} };
+    groups.forEach((group) => {
+      state.groups[group.id] = fromAddress(group);
+    });
+
+    const isActive = (group) => {
+      const value = state.groups[group.id];
+      if (group.type === "date-range") return Boolean(value.from || value.to);
+      // A hidden choice (a "Report dates" time range) is what the app shows, not something the person chose.
+      if (group.list.some((option) => option.hidden && option.value === value)) return false;
+      return JSON.stringify(value) !== JSON.stringify(defaultFor(group));
+    };
+    const activeCount = () => (state.search.trim() ? 1 : 0) + groups.filter(isActive).length;
+
+    const status = document.querySelector("#app-status-message") || make("div", { class: "visually-hidden", role: "status", "aria-live": "polite", "aria-atomic": "true" });
+    const announce = (message) => {
+      status.textContent = "";
+      window.setTimeout(() => {
+        status.textContent = message;
+      }, 50);
+    };
+
+    // The results message. An element marked data-filter-results beside the column (inside the same .search-layout)
+    // holds it; without one the column announces it through the status line. The app calls setResults(count) after
+    // it has filtered, and the column says "N results." once, or "No results." with a Reset filters button.
+    const resultsEl = column.closest(".search-layout")?.querySelector("[data-filter-results]");
+    if (resultsEl) {
+      resultsEl.setAttribute("role", "status");
+      resultsEl.setAttribute("aria-live", "polite");
+      resultsEl.setAttribute("aria-atomic", "true");
+    }
+    let resetPending = false;
+    let resetTimer;
+
+    // The toggle button, then the panel.
+    const toggle = make("button", { type: "button", id: `${panelId}-toggle`, class: "filter-toggle", "data-filter-toggle": name, "aria-controls": panelId });
+    const resetIcon = createLucideIcon("rotate-ccw");
+    const resetButton = make("button", { type: "button", class: "action-button", "aria-label": "Reset filters", title: "Reset filters" }, [resetIcon]);
+    const header = make("div", { class: "search-panel-header" }, [make("h2", { class: "search-panel-title", id: titleId, text: "Filter" }), resetButton]);
+
+    // The search box is left out when the file has no "search" (a short list that needs none).
+    let searchInput = null;
+    let searchField = null;
+    if (config.search) {
+      searchInput = make("input", { type: "search", id: config.search.id, autocomplete: "off" });
+      searchInput.value = state.search;
+      searchField = make("div", { class: "search-input-field" }, [make("label", { for: config.search.id, text: "Search" }), searchInput]);
+    }
+
+    const controls = {};
+    const groupCounts = {};
+    const disabledGroups = new Set();
+    const summaryFor = (group) => {
+      const count = state.groups[group.id].length;
+      return count ? `${count} selected` : group.allLabel;
+    };
+    const countNote = (option) => (option.count == null ? [] : [" ", make("span", { class: "search-facet-count", text: `(${option.count})` })]);
+
+    function buildGroup(group) {
+      const legendId = `${panelId}-${group.id}-legend`;
+      const fieldset = make("fieldset", { class: "search-facet-group", id: `${group.id}-facet` }, [make("legend", { id: legendId, text: group.label })]);
+      const controlId = (value) => `${panelId}-${group.id}-${String(value).replace(/[^a-z0-9]+/gi, "-")}`;
+      if (isMany(group)) {
+        const by = group.groupBy || [];
+        const inputs = [];
+        const summaries = [];
+        const chosen = () => state.groups[group.id];
+        // A choice whose parentField names another choice in the same list is listed under that parent (a division
+        // under its department). Parent and child are separate checkboxes; choosing one does not choose the other.
+        const item = (option, children) => {
+          const input = make("input", { type: "checkbox", name: group.id, value: option.value, id: `${panelId}-${group.id}-${inputs.length}` });
+          input.checked = chosen().includes(option.value);
+          inputs.push(input);
+          const under = children.get(option.value) || [];
+          return make("li", {}, [
+            make("label", {}, [input, make("span", { text: option.label }), ...countNote(option)]),
+            ...(under.length ? [make("ul", { class: "search-facet-list search-facet-children" }, under.map((child) => item(child, children)))] : []),
+          ]);
+        };
+        const list = (options) => {
+          const ids = new Set(options.map((option) => option.value));
+          const children = new Map();
+          options.forEach((option) => {
+            if (option.parent && option.parent !== option.value && ids.has(option.parent)) children.set(option.parent, [...(children.get(option.parent) || []), option]);
+          });
+          const placed = new Set();
+          const mark = (option) => { placed.add(option.value); (children.get(option.value) || []).forEach(mark); };
+          const roots = options.filter((option) => !(option.parent && option.parent !== option.value && ids.has(option.parent)));
+          roots.forEach(mark);
+          // A loop of parents (a is under b, b is under a) has no top; its choices are listed at the top, not lost.
+          const loose = options.filter((option) => !placed.has(option.value));
+          loose.forEach((option) => children.delete(option.value));
+          return make("ul", { class: "search-facet-list", id: by.length ? null : `${group.id}-options` }, [...roots, ...loose].map((option) => item(option, children)));
+        };
+        // Nested groups (groupBy): one collapsed group for each value of a field, in the order the data first shows them.
+        // A choice whose path is shorter than the depth sits directly in the group above (a facet with only one group).
+        const branch = (options, depth, trail = []) => {
+          if (depth >= by.length) return list(options);
+          const deeper = (option) => option.path.length > depth && option.path[depth] != null;
+          const parts = new Map();
+          options.filter(deeper).forEach((option) => parts.set(option.path[depth], [...(parts.get(option.path[depth]) || []), option]));
+          const wrap = make("div");
+          const here = options.filter((option) => !deeper(option));
+          if (here.length) wrap.append(list(here));
+          parts.forEach((subset, name) => {
+            const summary = make("summary", { text: name });
+            const key = [...trail, name].join(" / ");
+            summaries.push({ summary, name, key, values: new Set(subset.map((option) => option.value)) });
+            wrap.append(make("details", { class: "mm-facet-group", open: subset.some((option) => chosen().includes(option.value)) }, [summary, branch(subset, depth + 1, [...trail, name])]));
+          });
+          return wrap;
+        };
+        let simpleSummary;
+        let body;
+        if (by.length) body = branch(group.list, 0);
+        else if (group.collapsed === false) body = list(group.list);
+        else {
+          simpleSummary = make("summary", { id: `${group.id}-summary`, text: summaryFor(group) });
+          body = make("details", { class: "mm-facet-group", open: chosen().length > 0 }, [simpleSummary, list(group.list)]);
+        }
+        fieldset.append(body);
+        const refresh = () => {
+          if (simpleSummary) simpleSummary.textContent = summaryFor(group);
+          summaries.forEach(({ summary, name, key, values }) => {
+            const count = chosen().filter((value) => values.has(value)).length;
+            const total = (groupCounts[group.id] || {})[key];
+            summary.textContent = `${name}${total == null ? "" : ` (${total})`}${count ? ` (${count} selected)` : ""}`;
+          });
+        };
+        refresh();
+        fieldset.addEventListener("change", () => {
+          state.groups[group.id] = inputs.filter((input) => input.checked).map((input) => input.value);
+          refresh();
+          changed(group.id);
+        });
+        controls[group.id] = { list: fieldset, refresh, sync() {
+          inputs.forEach((input) => { input.checked = chosen().includes(input.value); });
+          refresh();
+          // A group holding a choice is open, so a choice set by the app is never hidden; with nothing chosen (Reset) all close.
+          fieldset.querySelectorAll("details").forEach((details) => { details.open = Boolean(details.querySelector("input:checked")); });
+        } };
+      } else if (group.type === "radio") {
+        const list = make("ul", { class: "search-facet-list", id: `${group.id}-options` });
+        group.list.forEach((option) => {
+          const input = make("input", { type: "radio", name: `${panelId}-${group.id}`, value: option.value, id: controlId(option.value) });
+          input.checked = state.groups[group.id] === option.value;
+          list.append(make("li", { hidden: option.hidden }, [make("label", {}, [input, make("span", { text: option.label }), ...countNote(option)])]));
+        });
+        fieldset.append(list);
+        list.addEventListener("change", (event) => {
+          state.groups[group.id] = event.target.value;
+          changed(group.id);
+        });
+        controls[group.id] = { list, sync() { list.querySelectorAll("input").forEach((input) => { input.checked = input.value === state.groups[group.id]; }); } };
+      } else if (group.type === "select") {
+        const select = make("select", { id: `${panelId}-${group.id}`, "aria-labelledby": legendId }, group.allLabel ? [make("option", { value: "", text: group.allLabel })] : []);
+        group.list.forEach((option) => select.append(make("option", { value: option.value, text: option.label, hidden: option.hidden })));
+        select.value = state.groups[group.id];
+        fieldset.append(select);
+        select.addEventListener("change", () => {
+          state.groups[group.id] = select.value;
+          changed(group.id);
+        });
+        controls[group.id] = { select, sync() { select.value = state.groups[group.id]; } };
+      } else {
+        // A To date before the From date is not applied: both fields are marked invalid, tied to a visible message
+        // that is announced, and the results stay as they were until the range is fixed.
+        const rangeError = make("p", { class: "app-error", id: `${panelId}-${group.id}-error`, role: "alert", hidden: true, text: "The To date must be on or after the From date." });
+        const showRange = (bad) => {
+          rangeError.hidden = !bad;
+          [from.input, to.input].forEach((one) => {
+            if (bad) {
+              one.setAttribute("aria-invalid", "true");
+              one.setAttribute("aria-describedby", rangeError.id);
+            } else {
+              one.removeAttribute("aria-invalid");
+              one.removeAttribute("aria-describedby");
+            }
+          });
+        };
+        const field = (edge, text) => {
+          const input = make("input", { type: "date", id: `${panelId}-${group.id}-${edge}` });
+          input.value = state.groups[group.id][edge];
+          input.addEventListener("change", () => {
+            const next = { ...state.groups[group.id], [edge]: input.value };
+            const bad = Boolean(next.from && next.to && next.from > next.to);
+            showRange(bad);
+            if (bad) return;
+            state.groups[group.id] = next;
+            changed(group.id);
+          });
+          return { input, wrapper: make("div", { class: "search-input-field" }, [make("label", { for: input.id, text }), input]) };
+        };
+        const from = field("from", "From");
+        const to = field("to", "To");
+        fieldset.append(from.wrapper, to.wrapper, rangeError);
+        controls[group.id] = { sync() { from.input.value = state.groups[group.id].from; to.input.value = state.groups[group.id].to; showRange(false); } };
+      }
+      // A group whose choices the app supplies has nothing to show until it does, or if there are none.
+      if (group.options?.app && group.list.length === 0) fieldset.hidden = true;
+      return fieldset;
+    }
+
+    const fieldsets = new Map(groups.map((group) => [group.id, buildGroup(group)]));
+    const aside = make("aside", { id: panelId, class: "search-sidebar", "aria-labelledby": titleId, "data-open": "false" }, [header, ...(searchField ? [searchField] : []), ...fieldsets.values()]);
+    column.replaceChildren(toggle, aside);
+    if (!status.isConnected) column.append(status);
+
+    function writeAddress() {
+      if (!addressOn) return;
+      const next = new URL(window.location.href);
+      const keys = ["q", ...groups.flatMap((group) => [group.param, ...dateParams(group)])];
+      keys.forEach((key) => next.searchParams.delete(key));
+      if (state.search.trim()) next.searchParams.set("q", state.search.trim());
+      groups.forEach((group) => {
+        const value = state.groups[group.id];
+        if (!isActive(group)) return;
+        if (isMany(group)) {
+          if (value.length && group.separator) next.searchParams.set(group.param, value.join(group.separator));
+          else if (value.length) value.forEach((one) => next.searchParams.append(group.param, one));
+          else next.searchParams.append(group.param, "");
+        } else if (group.type === "date-range") {
+          const [fromKey, toKey] = dateParams(group);
+          if (value.from) next.searchParams.set(fromKey, value.from);
+          if (value.to) next.searchParams.set(toKey, value.to);
+        } else next.searchParams.set(group.param, value);
+      });
+      try {
+        window.history.replaceState(window.history.state, "", next.href);
+      } catch {
+        // The address just is not updated.
+      }
+    }
+
+    const snapshot = () => JSON.parse(JSON.stringify({ search: state.search, groups: state.groups }));
+    function changed(source) {
+      toggle.dataset.filterActive = String(activeCount());
+      writeAddress();
+      column.dispatchEvent(new CustomEvent("marin-filter-change", { bubbles: true, detail: { state: snapshot(), source } }));
+    }
+
+    let searchTimer;
+    searchInput?.addEventListener("input", () => {
+      state.search = searchInput.value;
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => changed("search"), FILTER_SEARCH_PAUSE);
+    });
+    searchInput?.addEventListener("search", () => {
+      window.clearTimeout(searchTimer);
+      state.search = searchInput.value;
+      changed("search");
+    });
+
+    function reset() {
+      window.clearTimeout(searchTimer);
+      state.search = "";
+      if (searchInput) searchInput.value = "";
+      groups.forEach((group) => {
+        state.groups[group.id] = defaultFor(group);
+        controls[group.id].sync();
+      });
+      // The app's change handler usually calls setResults, which then says "Filters reset. N results." as one
+      // message; if it does not within a moment, "Filters reset." is said on its own.
+      resetPending = true;
+      window.clearTimeout(resetTimer);
+      resetTimer = window.setTimeout(() => {
+        if (!resetPending) return;
+        resetPending = false;
+        announce("Filters reset.");
+      }, 600);
+      changed("reset");
+    }
+
+    function setResults(count, text) {
+      const lead = resetPending ? "Filters reset. " : "";
+      resetPending = false;
+      window.clearTimeout(resetTimer);
+      // text may be a string, or a node an app built (a line with some words in another weight).
+      const isNode = Boolean(text && typeof text === "object" && text.nodeType);
+      const message = lead + (isNode ? text.textContent : text || (count === 0 ? "No results." : `${count} ${count === 1 ? "result" : "results"}.`));
+      if (!resultsEl) {
+        announce(message);
+        return;
+      }
+      // "Filters reset." is for the ear: it sits in a visually hidden span in front of the app's own words, so the line a
+      // sighted person reads stays the app's line.
+      const spoken = lead ? [make("span", { class: "visually-hidden", text: lead })] : [];
+      if (isNode) resultsEl.replaceChildren(...spoken, text);
+      else resultsEl.replaceChildren(...spoken, text || (count === 0 ? "No results." : `${count} ${count === 1 ? "result" : "results"}.`));
+      if (count === 0) {
+        const again = make("button", { type: "button", class: "action-button", text: "Reset filters" });
+        again.addEventListener("click", reset);
+        resultsEl.append(" ", again);
+      }
+    }
+    resetButton.addEventListener("click", reset);
+
+    // Counts shown beside each choice. Options are never disabled, so a count of 0 is still reachable.
+    function setCounts(groupId, counts) {
+      const control = controls[groupId];
+      if (!control?.list) return;
+      control.list.querySelectorAll("li").forEach((item) => {
+        const label = item.querySelector(":scope > label");
+        const input = label.querySelector("input");
+        let note = label.querySelector(".search-facet-count");
+        if (!note) {
+          note = make("span", { class: "search-facet-count" });
+          label.append(" ", note);
+        }
+        note.textContent = `(${counts[input.value] ?? 0})`;
+      });
+    }
+
+    // Matching. The file names the record field each group looks at ("field": "themes", a dot path such as
+    // "venue.name"; a list of values counts as each of them) and the fields the search reads ("search.fields").
+    // matchesRecord(record) is true when (it is not called matches: that name is the browser's own Element.matches, which
+    // selector tools call on every element) the record fits the search and every group that has a choice (OR inside a
+    // group, AND across groups); a group with no "field" is the app's own to apply. skip leaves groups out.
+    // updateCounts(records) shows beside every choice how many of the records would match if that choice were
+    // added, which leaves out its own group so its other choices stay visible.
+    const valuesAt = (record, path) => {
+      let found = [record];
+      String(path).split(".").forEach((key) => {
+        found = found.flatMap((one) => (one == null ? [] : [].concat(one).map((item) => item?.[key])))
+          .flatMap((item) => (Array.isArray(item) ? item : [item])).filter((item) => item != null && item !== "");
+      });
+      return found.map((item) => String(item).trim());
+    };
+    const searchCache = new WeakMap();
+    const searchTextOf = (record) => {
+      if (!searchCache.has(record)) searchCache.set(record, config.search.fields.map((field) => valuesAt(record, field).join(" ")).join(" ").toLowerCase());
+      return searchCache.get(record);
+    };
+    column.matchesRecord = (record, options = {}) => {
+      const skip = options.skip || [];
+      const query = state.search.trim().toLowerCase();
+      if (query && config.search?.fields?.length) {
+        const words = config.search.match === "words" ? query.split(/\s+/) : [query];
+        const text = searchTextOf(record);
+        if (!words.every((word) => text.includes(word))) return false;
+      }
+      return groups.every((group) => {
+        if (!group.field || skip.includes(group.id)) return true;
+        const value = state.groups[group.id];
+        if (group.type === "date-range") {
+          if (!value.from && !value.to) return true;
+          const day = (valuesAt(record, group.field)[0] || "").slice(0, 10);
+          return Boolean(day) && !(value.from && day < value.from) && !(value.to && day > value.to);
+        }
+        const chosen = isMany(group) ? value : value === "" ? [] : [value];
+        if (!chosen.length) return true;
+        const have = valuesAt(record, group.field);
+        return chosen.some((one) => have.includes(one));
+      });
+    };
+    column.filter = (records, options) => records.filter((record) => column.matchesRecord(record, options));
+    // options.extra(record) is the app's own test (a time window, a tab), applied to every count; options.skip
+    // { groupId: [other group ids] } leaves more groups out of one group's counts.
+    column.updateCounts = (records, options = {}) => {
+      const extra = options.extra || (() => true);
+      groups.forEach((group) => {
+        if (!group.field || group.type === "date-range" || !controls[group.id]?.list) return;
+        const skip = [group.id, ...((options.skip || {})[group.id] || [])];
+        const by = group.groupBy || [];
+        const paths = new Map(group.list.map((option) => [option.value, option.path]));
+        const counts = {};
+        const totals = {};
+        by.length && group.list.forEach((option) => {
+          for (let depth = 1; depth <= Math.min(option.path.length, by.length); depth += 1) totals[option.path.slice(0, depth).join(" / ")] = 0;
+        });
+        records.forEach((record) => {
+          if (!extra(record) || !column.matchesRecord(record, { skip })) return;
+          const values = [...new Set(valuesAt(record, group.field))];
+          values.forEach((value) => { counts[value] = (counts[value] || 0) + 1; });
+          if (!by.length) return;
+          const keys = new Set();
+          values.forEach((value) => {
+            const path = paths.get(value) || [];
+            for (let depth = 1; depth <= Math.min(path.length, by.length); depth += 1) keys.add(path.slice(0, depth).join(" / "));
+          });
+          keys.forEach((key) => { totals[key] = (totals[key] || 0) + 1; });
+        });
+        setCounts(group.id, counts);
+        if (by.length) column.setGroupCounts(group.id, totals);
+      });
+    };
+
+    // The pinned title row hides what sits under it, so a field tabbed into view must stop below it
+    // (WCAG 2.2 Focus Not Obscured): the panel's scroll padding follows the title row's real height.
+    const padForHeader = () => aside.style.setProperty("--filter-header-height", `${header.offsetHeight}px`);
+    padForHeader();
+    if (window.ResizeObserver) new ResizeObserver(padForHeader).observe(header);
+
+    Object.defineProperty(column, "filterState", { get: snapshot, configurable: true });
+    column.setCounts = setCounts;
+    column.reset = reset;
+    // For a group whose options are {"app": true}: the app supplies the choices once it has them (data it fetched
+    // or worked out), as [{ value, label, count?, path?, parent?, hidden? }]. The group is drawn again with what is
+    // chosen kept; a chosen value that is not among the new choices is dropped.
+    // Counts shown beside a nested group's name, keyed by its path ("Place" or "Place / Districts").
+    column.setGroupCounts = (groupId, counts) => {
+      groupCounts[groupId] = counts;
+      controls[groupId]?.refresh?.();
+    };
+    // A whole group the current view does not use (a time range while a report sets its own dates). The group stays
+    // on screen, dimmed and out of the tab order, and keeps what it holds.
+    column.setDisabled = (groupId, disabled) => {
+      if (!fieldsets.has(groupId)) return;
+      if (disabled) disabledGroups.add(groupId);
+      else disabledGroups.delete(groupId);
+      fieldsets.get(groupId).disabled = Boolean(disabled);
+    };
+    column.setOptions = (groupId, options) => {
+      const group = groups.find((one) => one.id === groupId);
+      if (!group) return;
+      group.list = options.map((option) => ({ count: null, path: [], parent: "", hidden: false, ...option, value: String(option.value) }));
+      if (isMany(group)) state.groups[groupId] = state.groups[groupId].filter((value) => group.list.some((option) => option.value === value));
+      else if (group.type === "radio" || group.type === "select") {
+        if (state.groups[groupId] !== "" && !group.list.some((option) => option.value === state.groups[groupId])) state.groups[groupId] = defaultFor(group);
+      }
+      const fresh = buildGroup(group);
+      fresh.disabled = disabledGroups.has(groupId);
+      fieldsets.get(groupId).replaceWith(fresh);
+      fieldsets.set(groupId, fresh);
+      toggle.dataset.filterActive = String(activeCount());
+      writeAddress();
+    };
+    column.setResults = setResults;
+    // The app sets a choice itself (for example a hidden "Report dates" choice). It updates the column, the
+    // address and the active count, and sends no change, so an app's own change handler cannot loop.
+    column.setValue = (groupId, value) => {
+      if (!controls[groupId]) return;
+      state.groups[groupId] = value;
+      controls[groupId].sync();
+      toggle.dataset.filterActive = String(activeCount());
+      writeAddress();
+    };
+    toggle.dataset.filterActive = String(activeCount());
+    setupFilterToggles([toggle]);
+    column.dispatchEvent(new CustomEvent("marin-filter-ready", { bubbles: true, detail: { state: snapshot() } }));
+  }
+
+  // A file that will not load shows a short message the person can act on, announced as an alert, with a Retry.
+  function drawFilterColumn(column) {
+    if (column.dataset.filterDrawn) return;
+    column.dataset.filterDrawn = "true";
+    renderFilterColumn(column).catch((error) => {
+      column.dataset.filterError = error.message;
+      console.error(`Filter column: ${error.message}`);
+      const alert = document.createElement("div");
+      alert.className = "app-alert app-alert--danger";
+      alert.setAttribute("role", "alert");
+      const text = document.createElement("p");
+      text.textContent = "Could not load the filters.";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "action-button";
+      retry.textContent = "Retry";
+      retry.addEventListener("click", () => {
+        column.removeAttribute("data-filter-error");
+        column.removeAttribute("data-filter-drawn");
+        column.replaceChildren();
+        drawFilterColumn(column);
+      });
+      alert.append(text, retry);
+      column.replaceChildren(alert);
+    });
+  }
+  document.querySelectorAll("[data-filter-column]").forEach(drawFilterColumn);
+  // A column added to the page later (an app that draws its pages from templates as the address changes) is drawn
+  // as it arrives. One that leaves with its page takes its work with it.
+  new MutationObserver((records) => {
+    records.forEach((record) => record.addedNodes.forEach((node) => {
+      if (node.nodeType !== 1) return;
+      if (node.matches("[data-filter-column]")) drawFilterColumn(node);
+      node.querySelectorAll("[data-filter-column]").forEach(drawFilterColumn);
+    }));
+  }).observe(document.body, { childList: true, subtree: true });
 
   // Sortable table columns: a <thead> button[data-sort-key="foo"] sorts the
   // tbody's rows by their data-sort-foo attribute. Rows don't need any JS
@@ -1776,6 +2354,115 @@
 
   window.marinContentFormats = contentFormats;
   window.marinFormatMenus = formatMenus;
+
+  // ---- Search results that show where the words are -----------------------------------------------------------------
+  // A search of document text shows a line of the text under each result with the matched words marked (marinSearchSnippet),
+  // and marks the same words on the page the result opens. The words travel in sessionStorage, never in the address
+  // (marinSearchRemember on a press, and the highlighter below on arrival). The rules are "Search results that show where the
+  // words are" in Marin UI's docs/components.md; the two classes (mark.search-hit, .search-snippet) are in Marin UI's CSS.
+  const SEARCH_HIT_KEY = "marin-search-hit";
+  const SEARCH_WORD = /[\p{L}\p{N}]+/gu;
+  const searchPlain = (text) => String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  /** The words of what a person typed, lower case and without accents: what marinSearchSnippet and marinSearchRemember take. */
+  function marinSearchWords(text) {
+    return searchPlain(text).split(/[^a-z0-9]+/).filter(Boolean);
+  }
+
+  const startsAWord = (word, words) => words.some((w) => searchPlain(word).startsWith(w));
+
+  /** A `span.search-snippet` with about a line of `text` around the first word that starts with a typed word, each such word in a
+   * `mark.search-hit`, with an ellipsis on a side that continues. `null` when no word of the text starts with one. */
+  function marinSearchSnippet(text, words) {
+    const source = String(text || "");
+    const first = [...source.matchAll(SEARCH_WORD)].find((m) => startsAWord(m[0], words));
+    if (!first) return null;
+    let start = Math.max(0, first.index - 60);
+    if (start) {
+      const gap = source.indexOf(" ", start);
+      if (gap > -1 && gap < first.index) start = gap + 1;
+    }
+    let end = Math.min(source.length, start + 170);
+    if (end < source.length) {
+      const gap = source.lastIndexOf(" ", end);
+      if (gap > first.index) end = gap;
+    }
+    const part = source.slice(start, end);
+    const span = Object.assign(document.createElement("span"), { className: "search-snippet" });
+    if (start) span.append("\u2026");
+    let at = 0;
+    for (const m of part.matchAll(SEARCH_WORD)) {
+      if (!startsAWord(m[0], words)) continue;
+      span.append(part.slice(at, m.index), Object.assign(document.createElement("mark"), { className: "search-hit", textContent: m[0] }));
+      at = m.index + m[0].length;
+    }
+    span.append(part.slice(at));
+    if (end < source.length) span.append("\u2026");
+    return span;
+  }
+
+  /** Keep the typed words for the page `href` opens (call it when a result is pressed). Quietly does nothing without storage. */
+  function marinSearchRemember(href, words) {
+    try {
+      sessionStorage.setItem(SEARCH_HIT_KEY, JSON.stringify({ path: new URL(href, location.href).pathname, terms: words, at: Date.now() }));
+    } catch {
+      /* no storage: no highlight */
+    }
+  }
+
+  // On arrival: if the words were kept for this page (and are under two minutes old), mark each word that starts with one inside the
+  // page's content ([data-search-highlight], else #start, else #main), scroll to the first mark (or stay at the section the address
+  // names), and let Escape clear the marks. Read once; a reload shows none.
+  function marinSearchHighlight() {
+    let hit = null;
+    try {
+      hit = JSON.parse(sessionStorage.getItem(SEARCH_HIT_KEY) || "null");
+      sessionStorage.removeItem(SEARCH_HIT_KEY);
+    } catch {
+      return;
+    }
+    if (!hit || hit.path !== location.pathname || !Array.isArray(hit.terms) || !hit.terms.length || Date.now() - hit.at > 120000) return;
+    const root = document.querySelector("[data-search-highlight]") || document.getElementById("start") || document.getElementById("main");
+    if (!root) return;
+    const skip = "script, style, nav, aside, .doc-actions, .doc-pager, mark, [data-no-copy], search, template";
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement && !n.parentElement.closest(skip) && n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    const marks = [];
+    for (const node of nodes) {
+      const text = node.nodeValue;
+      const found = [...text.matchAll(SEARCH_WORD)].filter((m) => startsAWord(m[0], hit.terms));
+      if (!found.length) continue;
+      const fragment = document.createDocumentFragment();
+      let at = 0;
+      for (const m of found) {
+        fragment.append(text.slice(at, m.index));
+        const mark = Object.assign(document.createElement("mark"), { className: "search-hit", textContent: m[0] });
+        marks.push(mark);
+        fragment.append(mark);
+        at = m.index + m[0].length;
+      }
+      fragment.append(text.slice(at));
+      node.replaceWith(fragment);
+    }
+    if (!marks.length) return;
+    const target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+    (marks.find((m) => target && target.contains(m)) || marks[0]).scrollIntoView({ block: "center" });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      marks.forEach((m) => m.replaceWith(document.createTextNode(m.textContent)));
+      root.normalize();
+    });
+  }
+
+  window.marinSearchWords = marinSearchWords;
+  window.marinSearchSnippet = marinSearchSnippet;
+  window.marinSearchRemember = marinSearchRemember;
+  window.marinSearchHighlight = marinSearchHighlight;
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", marinSearchHighlight);
+  else marinSearchHighlight();
 
   // Copy-to-clipboard: any button[data-copy-value] copies that value and
   // shows brief feedback. Announces through #app-status-message if present

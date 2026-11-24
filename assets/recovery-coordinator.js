@@ -118,7 +118,9 @@
       lastDownloadedRevision: downloadedRevision,
       snapshotFormatVersion: SNAPSHOT_FORMAT_VERSION,
       journalFormatVersion: JOURNAL_FORMAT_VERSION,
-      workingStatus: state.hasUndownloadedChanges ? "changed" : state.modifiedFromOpen ? "downloaded" : "unchanged",
+      workingStatus: state.hasUndownloadedChanges
+        ? "changed"
+        : (state.modifiedFromOpen || documentModel.newDocument) ? "downloaded" : "unchanged",
     };
   }
 
@@ -135,6 +137,7 @@
       newlineCounts: { ...(documentModel.newlineCounts || {}) },
       trailingNewline: Boolean(documentModel.trailingNewline),
       initialDocumentMode: documentModel.preview ? "preview" : "editable",
+      newDocument: Boolean(documentModel.newDocument),
     };
   }
 

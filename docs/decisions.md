@@ -1,12 +1,13 @@
 # Marin CSV architecture decisions
 
-Status: accepted and authoritative for CSV-6 and subsequent implementation phases  
-Original product decision date: 2026-10-13  
-CSV-2 operational policy formalized: 2026-10-14  
-CSV-3 workspace architecture formalized: 2026-10-14  
-CSV-4 local recovery architecture formalized: 2026-10-14  
+Status: accepted and authoritative for CSV-7 and subsequent implementation phases
+Original product decision date: 2026-10-13
+CSV-2 operational policy formalized: 2026-10-14
+CSV-3 workspace architecture formalized: 2026-10-14
+CSV-4 local recovery architecture formalized: 2026-10-14
 CSV-5 common delimiter support formalized: 2026-10-15
 CSV-6 cell context-menu behavior formalized: 2026-10-15
+CSV-7 create-new behavior formalized: 2026-11-24
 
 ## Product purpose
 
@@ -84,9 +85,10 @@ multi-character delimiters remain out of scope.
 Saving always downloads a new file. Marin CSV does not request write access to
 the original file and does not use a browser-specific direct-save API.
 
-The generated name adds `-copy` to an untouched file or `-edited` to a changed
-file before the extension. Repeated downloads add a numeric suffix. The
-original file is never overwritten.
+For an opened file, the generated name adds `-copy` to an untouched file or
+`-edited` to a changed file before the extension. For a new browser document,
+the first download uses the user-editable document filename exactly. Repeated
+downloads add a numeric suffix. An opened source file is never overwritten.
 
 ## Accepted implementation architecture
 
@@ -380,9 +382,63 @@ conflict documents expose only exact-value filtering. Paged editable documents
 expose edit, clear, and structural deletion but not filtering. Read-only
 preview documents retain the browser's native context menu.
 
+## CSV-7 create-new decisions
+
+### Put creation beside the existing open actions
+
+The open view presents **Browse files**, **Create new CSV**, and **Open sample**
+in that order. Creating a CSV does not open a file chooser and does not create
+or download a device file until the user explicitly chooses **Download file**.
+
+### Start with a blank, valid editing model
+
+A new document uses comma delimiter, strict UTF-8 without a BOM, CRLF for row
+boundaries created later, no final line ending, and first-row column-name mode.
+The document model contains one blank first-row scaffold so the grid can expose
+one editable column. Before any content edit, export remains a zero-byte CSV.
+
+Adding a blank one-column record must serialize it unambiguously. Marin CSV may
+temporarily quote that empty field, but the quote preference is removed when a
+plain value is entered so ordinary text is not quoted without a CSV reason.
+
+### Use a local date-and-time filename that can be changed
+
+The default name is `marin-csv-YYYY-MM-DD-HHMMSS.csv`, using the user's local
+clock at creation time. An **Edit filename** control is available for new
+documents. Empty names, path separators, control characters, and incomplete
+`.` or `..` names are rejected. Marin CSV adds `.csv` when no extension is
+entered.
+
+The filename is document metadata, not CSV content. Filename changes do not
+enter the data undo stack, but they are journaled for local recovery and count
+as undownloaded work after a prior download.
+
+### Distinguish new-document download state from opened-file state
+
+A new document is undownloaded from the moment it is created, even while its
+CSV content is empty. Its first download uses the chosen filename. Later
+downloads add `-2`, `-3`, and so on. Undoing away from the last downloaded
+content or changing the filename returns the document to an undownloaded state.
+
+Opened files retain the established `-copy` and `-edited` naming contract.
+
+### Extend recovery formats additively
+
+Snapshot format 1 adds an optional `newDocument` flag, source format 1 records
+the same origin type, and journal format 1 accepts `set-filename`. Existing
+records without the flag remain opened-file documents. No IndexedDB schema
+migration is required.
+
+### Update the shared platform without adopting unrelated components
+
+CSV-7 installs Marin App Shell 2.2.0 with Marin UI 1.38.0. Marin CSV has no
+filter column, so the App Shell 2.0 filter-column migration does not apply.
+Shell-managed files remain unmodified and are verified against the supplied
+release manifest.
+
 ## Deferred decisions
 
-The following remain outside CSV-5:
+The following remain outside CSV-7:
 
 - a universal or publicly promised maximum file size;
 - non-UTF-8 transcoding;

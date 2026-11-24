@@ -132,8 +132,9 @@ replace user-driven drag selection with programmatic selection.
 
 The final command is mandatory in a localhost-permitted environment. Automated
 tests do not establish WCAG 2.2 AA conformance. Complete the manual checklists
-in `docs/csv-4-manual-review.md`, `docs/csv-5-manual-review.md`, and
-`docs/csv-6-manual-review.md` before changing the Alpha status.
+in `docs/csv-4-manual-review.md`, `docs/csv-5-manual-review.md`,
+`docs/csv-6-manual-review.md`, and `docs/csv-7-manual-review.md` before changing
+the Alpha status.
 
 ## Benchmarks
 

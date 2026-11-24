@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise CSV-4 recovery retained by the CSV-6 Marin CSV interface.
+"""Exercise CSV-4 recovery retained by the CSV-7 Marin CSV interface.
 
 The in-memory mode uses the production coordinator with its deterministic
 MemoryRecoveryStore so UI behavior can run in policy-restricted CI. The normal

@@ -1,6 +1,6 @@
 {
   "name": "marin-csv",
-  "version": "0.1.0-csv.6",
+  "version": "0.1.0-csv.7",
   "private": true,
   "description": "Local-browser delimited-text viewer and editor for MarinOS.",
   "scripts": {

@@ -1,5 +1,5 @@
 /*
- * Marin CSV preservation engine (CSV-5).
+ * Marin CSV preservation engine (CSV-7).
  *
  * The engine treats every field as text. It keeps the original bytes so an
  * untouched document downloads byte-for-byte, and it keeps each original row's
@@ -692,6 +692,9 @@
     const rows = Array.isArray(data)
       ? data.map((row) => (Array.isArray(row) ? row.map((value) => (value == null ? "" : String(value))) : [String(row ?? "")]))
       : [];
+    if (text === "" && rows.length === 1 && rows[0].length === 1 && rows[0][0] === "") {
+      rows.pop();
+    }
     if (/\r\n$|\r$|\n$/.test(text) && rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
       rows.pop();
     }
@@ -798,8 +801,23 @@
     return /^[\t\r\n ]*[=+\-@]/.test(String(value));
   }
 
+  function defaultNewFilename(value = new Date()) {
+    const date = value instanceof Date ? value : new Date(value);
+    const valid = Number.isFinite(date.getTime()) ? date : new Date();
+    const pad = (number) => String(number).padStart(2, "0");
+    return `marin-csv-${valid.getFullYear()}-${pad(valid.getMonth() + 1)}-${pad(valid.getDate())}-${pad(valid.getHours())}${pad(valid.getMinutes())}${pad(valid.getSeconds())}.csv`;
+  }
+
+  function safeFilename(value, fallback = "data.csv") {
+    const cleaned = String(value ?? "")
+      .trim()
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/[\\/]/g, "_");
+    return cleaned || fallback;
+  }
+
   function makeFilename(original, edited, sequence = 1) {
-    const name = String(original || "data.csv").replace(/[\\/]/g, "_");
+    const name = safeFilename(original);
     const match = name.match(/^(.*?)(\.[^.]+)?$/);
     const stem = match && match[1] ? match[1] : "data";
     const extension = match && match[2] ? match[2] : ".csv";
@@ -808,9 +826,20 @@
     return `${stem}-${edited ? "edited" : "copy"}${suffix}${extension}`;
   }
 
+  function makeNewFilename(original, sequence = 1) {
+    const name = safeFilename(original, defaultNewFilename());
+    const count = Math.max(1, Math.trunc(Number(sequence) || 1));
+    if (count === 1) return name;
+    const match = name.match(/^(.*?)(\.[^.]+)?$/);
+    const stem = match && match[1] ? match[1] : "marin-csv";
+    const extension = match && match[2] ? match[2] : ".csv";
+    return `${stem}-${count}${extension}`;
+  }
+
   class CsvDocument {
     constructor(config) {
-      this.filename = config.filename;
+      this.filename = safeFilename(config.filename);
+      this.newDocument = Boolean(config.newDocument);
       this.originalBytes = config.adoptTransfer === true && config.originalBytes instanceof Uint8Array
         ? config.originalBytes
         : new Uint8Array(config.originalBytes);
@@ -834,6 +863,33 @@
       this.recoveryListeners = new Set();
     }
 
+    static createBlank(options = {}) {
+      const delimiter = requireDelimiter(options.delimiter || ",");
+      const parserValidation = validateWithPapa("", delimiter, [], options.papa);
+      return new CsvDocument({
+        filename: safeFilename(options.filename, defaultNewFilename(options.now)),
+        newDocument: true,
+        originalBytes: new Uint8Array(),
+        delimiter,
+        bom: false,
+        rows: [{
+          id: 1,
+          cells: [""],
+          quoteFlags: [false],
+          raw: "",
+          separator: "",
+          changed: false,
+          isNew: true,
+        }],
+        warnings: [],
+        parserValidation,
+        newlineCounts: { "\r\n": 0, "\n": 0, "\r": 0 },
+        newline: "\r\n",
+        trailingNewline: false,
+        headerMode: true,
+      });
+    }
+
     static fromTransfer(config) {
       if (!config || config.kind !== "full") throw new TypeError("Expected a full Marin CSV transfer record.");
       return new CsvDocument({ ...config, adoptTransfer: true });
@@ -843,6 +899,7 @@
       validateRecoverySnapshot(snapshot, "full");
       return new CsvDocument({
         filename: snapshot.filename || "data.csv",
+        newDocument: Boolean(snapshot.newDocument),
         originalBytes: toUint8Array(originalBytes),
         delimiter: requireDelimiter(snapshot.delimiter),
         bom: Boolean(snapshot.bom),
@@ -931,6 +988,9 @@
     }
 
     get hasUndownloadedChanges() {
+      if (this.newDocument) {
+        return this.downloadCount === 0 || this.historyIndex !== this.lastDownloadedIndex;
+      }
       return this.modifiedFromOpen && this.historyIndex !== this.lastDownloadedIndex;
     }
 
@@ -960,6 +1020,15 @@
 
     get displayDataRowCount() {
       return this.dataRowCount;
+    }
+
+    setFilename(value) {
+      const next = safeFilename(value, this.filename || defaultNewFilename());
+      if (next === this.filename) return false;
+      this.filename = next;
+      if (this.newDocument && this.downloadCount > 0) this.lastDownloadedIndex = -1;
+      this._emitRecovery({ type: "set-filename", filename: next }, "Rename file");
+      return true;
     }
 
     setHeaderMode(enabled) {
@@ -1084,6 +1153,10 @@
           row.cells.push("");
           row.quoteFlags.push(false);
         }
+        if (columnIndex === 0 && text !== "" && row.isNew && row.cells.length === 1
+            && row.cells[0] === "" && row.quoteFlags[0] === true && row.raw === "") {
+          row.quoteFlags[0] = false;
+        }
         row.cells[columnIndex] = text;
         row.changed = true;
       };
@@ -1121,6 +1194,10 @@
             row.cells.push("");
             row.quoteFlags.push(false);
           }
+          if (edit.columnIndex === 0 && edit.value !== "" && row.isNew && row.cells.length === 1
+              && row.cells[0] === "" && row.quoteFlags[0] === true && row.raw === "") {
+            row.quoteFlags[0] = false;
+          }
           row.cells[edit.columnIndex] = edit.value;
           row.changed = true;
         });
@@ -1150,6 +1227,7 @@
         changed: true,
         isNew: true,
       };
+      if (width === 1 && row.cells[0] === "") row.quoteFlags[0] = true;
       this._execute("Add row", () => this.rows.splice(bounded, 0, row), () => this.rows.splice(bounded, 1), {
         redo: { type: "splice-rows", index: bounded, deleteCount: 0, rows: [cloneRow(row)] },
         undo: { type: "splice-rows", index: bounded, deleteCount: 1, rows: [] },
@@ -1363,6 +1441,8 @@
         this.rows.splice(index, deleteCount, ...command.rows.map(cloneRow));
       } else if (command.type === "set-header-mode") {
         this.headerMode = Boolean(command.enabled);
+      } else if (command.type === "set-filename") {
+        this.filename = safeFilename(command.filename, this.filename || "data.csv");
       } else if (command.type !== "download-state") {
         throw new CsvError(
           "UNSUPPORTED_RECOVERY_COMMAND",
@@ -1380,6 +1460,7 @@
         formatVersion: 1,
         kind: "full",
         filename: this.filename,
+        newDocument: this.newDocument,
         delimiter: this.delimiter,
         bom: this.bom,
         rows: this.rows.map(cloneRow),
@@ -1407,6 +1488,9 @@
     }
 
     validateCurrentWithPapa(papa) {
+      if (this.newDocument && !this.modifiedFromOpen) {
+        return validateWithPapa("", this.delimiter, [], papa);
+      }
       return validateWithPapa(this.serializeText(), this.delimiter, this.rows, papa);
     }
 
@@ -1416,6 +1500,7 @@
     }
 
     downloadName() {
+      if (this.newDocument) return makeNewFilename(this.filename, this.downloadCount + 1);
       return makeFilename(this.filename, this.modifiedFromOpen, this.downloadCount + 1);
     }
 
@@ -1424,6 +1509,7 @@
       return {
         kind: "full",
         filename: this.filename,
+        newDocument: this.newDocument,
         originalBytes: move ? this.originalBytes : new Uint8Array(this.originalBytes),
         delimiter: this.delimiter,
         bom: this.bom,
@@ -1444,6 +1530,7 @@
     metadata() {
       return {
         filename: this.filename,
+        newDocument: this.newDocument,
         delimiter: this.delimiter,
         delimiterName: delimiterName(this.delimiter),
         bom: this.bom,
@@ -1459,6 +1546,7 @@
         cells: this.cellCount,
         readOnly: this.readOnly,
         preview: this.preview,
+        downloadCount: this.downloadCount,
         modifiedFromOpen: this.modifiedFromOpen,
         hasUndownloadedChanges: this.hasUndownloadedChanges,
       };
@@ -1810,6 +1898,7 @@
     bytesEqual,
     columnLabel,
     decodeUtf8,
+    defaultNewFilename,
     detectDelimiter,
     detectDelimiterDetails,
     delimiterDefinition,
@@ -1824,8 +1913,9 @@
     scanDelimited,
     serializeField,
     serializeRow,
+    safeFilename,
     supportedDelimiters,
     validateWithPapa,
-    version: "0.5.0-csv5",
+    version: "0.7.0-csv7",
   };
 });

@@ -66,6 +66,30 @@ test("normalized recovery events replay deterministic forward document changes",
   assert.equal(replayed.canUndo, false);
 });
 
+test("new CSV snapshots and filename journal entries restore the blank-document workflow", () => {
+  const source = new Uint8Array();
+  const initial = Engine.CsvDocument.createBlank({ filename: "new.csv" });
+  const snapshot = initial.toRecoverySnapshot();
+  const events = [];
+  initial.subscribeRecovery((event) => events.push(event));
+
+  initial.setFilename("county-data.csv");
+  initial.setHeaders(["id"]);
+  initial.addRow(1, ["001"]);
+  initial.markDownloaded();
+  initial.setFilename("county-data-final.csv");
+
+  const replayed = Engine.documentFromRecoverySnapshot(snapshot, source);
+  events.forEach((event) => replayed.applyRecoveryCommand(event.command, event.state));
+
+  assert.equal(replayed.newDocument, true);
+  assert.equal(replayed.filename, "county-data-final.csv");
+  assert.equal(text(replayed), "id\r\n001");
+  assert.equal(replayed.downloadCount, 1);
+  assert.equal(replayed.hasUndownloadedChanges, true);
+  assert.equal(replayed.downloadName(), "county-data-final-2.csv");
+});
+
 test("preview snapshots remain bounded and preserve exact source bytes", () => {
   const source = bytes("a,b\n1,2\n3,4\n5,6\n");
   const preview = Engine.CsvPreviewDocument.fromBytes(source, {

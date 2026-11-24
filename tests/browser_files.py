@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import re
 import shutil
 import sys
 
@@ -20,6 +21,13 @@ BOM = b"\xef\xbb\xbf"
 def wait_for_grid(page) -> None:
     page.locator("#csv-grid.tabulator[role='grid']").wait_for(state="visible")
     page.locator(".tabulator-cell[data-document-row-index][data-column-index]").first.wait_for()
+
+
+def open_more_menu(page) -> None:
+    menu = page.locator("#csv-more-menu")
+    if menu.get_attribute("open") is None:
+        menu.locator("summary").click()
+    menu.locator(".csv-toolbar-menu-panel").wait_for(state="visible")
 
 
 def data_cell(page, row: int, column: int):
@@ -101,6 +109,69 @@ def run(in_memory: bool = False) -> None:
             ready(page)
             page.locator("#csv-open-button").wait_for(state="visible")
 
+            # A new CSV starts in a blank local workspace with an editable timestamped filename.
+            action_ids = page.locator(".csv-open-actions > button").evaluate_all(
+                "buttons => buttons.map(button => button.id)"
+            )
+            require(action_ids == ["csv-open-button", "csv-new-button", "csv-sample-button"],
+                    f"Open actions are not in Browse, Create, Sample order: {action_ids!r}")
+            require(page.locator("#csv-new-button").inner_text().strip() == "Create new CSV",
+                    "The create action does not use the expected visible label")
+            page.locator("#csv-new-button").click()
+            page.locator("#csv-editor-view").wait_for(state="visible")
+            page.locator("#csv-grid.tabulator[role='grid']").wait_for(state="visible")
+            initial_name = page.locator("#csv-file-heading").inner_text()
+            require(re.fullmatch(r"marin-csv-\d{4}-\d{2}-\d{2}-\d{6}\.csv", initial_name) is not None,
+                    f"New CSV filename is not date/timestamp based: {initial_name!r}")
+            require(page.locator("#csv-filename-button").is_visible(),
+                    "The new CSV workspace does not offer filename editing")
+            require("0 data rows" in page.locator("#csv-file-summary").inner_text(),
+                    "The new CSV workspace did not start without data rows")
+            require(page.locator("#csv-status-state").inner_text() == "New — not downloaded",
+                    "A new CSV was not identified as undownloaded")
+
+            page.locator("#csv-filename-button").click()
+            page.locator("#csv-filename-dialog").wait_for(state="visible")
+            page.locator("#csv-filename-input").fill("bad/name")
+            page.locator("#csv-filename-form button[type='submit']").click()
+            require(page.locator("#csv-filename-dialog").is_visible(),
+                    "An invalid filename closed the filename dialog")
+            require(page.locator("#csv-filename-input").get_attribute("aria-invalid") == "true",
+                    "An invalid filename was not exposed programmatically")
+            require("slashes" in page.locator("#csv-filename-error").inner_text(),
+                    "The invalid filename did not show a useful inline error")
+            page.locator("#csv-filename-input").fill("county-data")
+            page.locator("#csv-filename-form button[type='submit']").click()
+            page.locator("#csv-filename-dialog").wait_for(state="hidden")
+            page.wait_for_function(
+                "() => document.querySelector('#csv-file-heading')?.textContent === 'county-data.csv'"
+            )
+
+            open_more_menu(page)
+            page.locator("#csv-headers-button").click()
+            page.locator("#csv-headers-dialog").wait_for(state="visible")
+            page.locator("#csv-header-fields input").first.fill("id")
+            page.locator("#csv-headers-form button[type='submit']").click()
+            page.locator("#csv-headers-dialog").wait_for(state="hidden")
+            page.locator("#csv-add-row-button").click()
+            data_cell(page, 1, 0).wait_for()
+            edit_cell(page, 1, 0, "001")
+
+            saved_name, saved = download_of(page)
+            require(saved_name == "county-data.csv",
+                    f"First new CSV download did not use the chosen filename: {saved_name!r}")
+            require(saved == b"id\r\n001", f"New CSV download bytes differ: {saved!r}")
+            second_name, second_saved = download_of(page)
+            require(second_name == "county-data-2.csv",
+                    f"Repeated new CSV download was not numbered: {second_name!r}")
+            require(second_saved == saved, "Repeated new CSV download changed its bytes")
+            require(page.locator("#csv-status-state").inner_text() == "New — downloaded",
+                    "A downloaded new CSV did not show downloaded state")
+            page.locator("#csv-open-another-button").click()
+            page.locator("#csv-open-view").wait_for(state="visible")
+            require(page.locator("#csv-confirm-dialog").is_hidden(),
+                    "A fully downloaded new CSV still prompted before returning to the open view")
+
             # A file that is not a spreadsheet text file gets a plain message and nothing opens.
             choose(page, "report.xlsx", b"PK\x03\x04", "application/vnd.ms-excel")
             page.locator("#csv-open-error").wait_for(state="visible")
@@ -123,6 +194,8 @@ def run(in_memory: bool = False) -> None:
             require(page.locator(".upload-drop-overlay").get_attribute("data-active") == "false",
                     "The drop overlay stayed after the file was dropped")
             require(data_cell(page, 1, 0).inner_text() == "001", "The dropped file's text did not open as written")
+            require(page.locator("#csv-filename-button").is_hidden(),
+                    "Filename editing was exposed for an uploaded file")
             require("dropped.csv" in page.locator("#csv-editor-view").inner_text(),
                     "The dropped file's name is not shown")
 

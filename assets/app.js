@@ -1,4 +1,4 @@
-/* Marin CSV CSV-6 application workflow. Shared shell behavior remains in vendor/marinos. */
+/* Marin CSV CSV-7 application workflow. Shared shell behavior remains in vendor/marinos. */
 (() => {
   "use strict";
 
@@ -34,11 +34,13 @@
       dropZone: get("csv-drop-zone"),
       fileInput: get("csv-file-input"),
       openButton: get("csv-open-button"),
+      newButton: get("csv-new-button"),
       sampleButton: get("csv-sample-button"),
       openAnotherButton: get("csv-open-another-button"),
       downloadButton: get("csv-download-button"),
       downloadLabel: get("csv-download-label"),
       fileHeading: get("csv-file-heading"),
+      filenameButton: get("csv-filename-button"),
       fileSummary: get("csv-file-summary"),
       modeNotice: get("csv-mode-notice"),
       fileNotice: get("csv-file-notice"),
@@ -101,6 +103,10 @@
       headersDialog: get("csv-headers-dialog"),
       headersForm: get("csv-headers-form"),
       headerFields: get("csv-header-fields"),
+      filenameDialog: get("csv-filename-dialog"),
+      filenameForm: get("csv-filename-form"),
+      filenameInput: get("csv-filename-input"),
+      filenameError: get("csv-filename-error"),
       openError: get("csv-open-error"),
       recentPanel: get("csv-recent-panel"),
       recentList: get("csv-recent-list"),
@@ -1090,6 +1096,33 @@
       return cleaned || "data.csv";
     }
 
+    function filenameResult(value) {
+      const entered = String(value ?? "").trim();
+      if (!entered) return { error: "Enter a filename." };
+      if (/[\u0000-\u001f\u007f\\/]/.test(entered)) {
+        return { error: "Do not use slashes or control characters in the filename." };
+      }
+      if (entered === "." || entered === "..") return { error: "Enter a complete filename." };
+      const filename = /\.[^.\s]+$/.test(entered) ? entered : `${entered}.csv`;
+      if (filename.length > 240) return { error: "Use a filename with 240 characters or fewer." };
+      return { filename };
+    }
+
+    function clearFilenameError() {
+      elements.filenameError.hidden = true;
+      elements.filenameError.textContent = "";
+      elements.filenameInput.removeAttribute("aria-invalid");
+    }
+
+    function editFilename() {
+      if (!state.document?.newDocument || state.document.readOnly || state.busy) return;
+      clearFilenameError();
+      elements.filenameInput.value = state.document.filename;
+      elements.filenameDialog.showModal();
+      elements.filenameInput.focus();
+      elements.filenameInput.select();
+    }
+
     function formatBytes(value) {
       const bytes = Math.max(0, Number(value) || 0);
       if (bytes < 1024) return `${bytes.toLocaleString()} bytes`;
@@ -1120,15 +1153,40 @@
         showOpenError("Marin CSV cannot open files because its reviewed local CSV libraries did not load.");
         return;
       }
+      const creatingNew = options.newDocument === true;
+      const operationTitle = creatingNew ? "Creating CSV" : "Opening file";
       const ownOperation = !state.busy;
-      if (ownOperation) await beginOperation("Opening file", `Reading ${safeFileName(filename)}`);
+      if (ownOperation) await beginOperation(operationTitle, creatingNew
+        ? `Starting ${safeFileName(filename)}`
+        : `Reading ${safeFileName(filename)}`);
       try {
-        const result = await Loader.parseBytes(bytes, {
-          filename: safeFileName(filename),
-          delimiter: options.delimiter || "auto",
-          headerMode: options.headerMode !== false,
-          papa: window.Papa,
-        }, ({ message }) => updateOperation("Opening file", message), window);
+        let result;
+        if (creatingNew) {
+          const documentModel = Engine.CsvDocument.createBlank({
+            filename: safeFileName(filename),
+            delimiter: options.delimiter || ",",
+            papa: window.Papa,
+          });
+          result = {
+            document: documentModel,
+            policy: Policy.classify({
+              rows: documentModel.rowCount,
+              columns: documentModel.columnCount,
+              cells: documentModel.cellCount,
+              bytes: 0,
+            }),
+            metrics: null,
+            usedWorker: false,
+          };
+          updateOperation(operationTitle, "Preparing a blank workspace");
+        } else {
+          result = await Loader.parseBytes(bytes, {
+            filename: safeFileName(filename),
+            delimiter: options.delimiter || "auto",
+            headerMode: options.headerMode !== false,
+            papa: window.Papa,
+          }, ({ message }) => updateOperation(operationTitle, message), window);
+        }
         closeCellContextMenu({ restoreFocus: false });
         clearValueFilter({ announce: false });
         state.document = result.document;
@@ -1147,9 +1205,9 @@
         clearOpenError();
         showEditorView();
         applyWorkspaceLayout({ redraw: false });
-        updateOperation("Opening file", "Building the local data editor");
+        updateOperation(operationTitle, "Building the local data editor");
         await renderDocument();
-        updateOperation("Opening file", "Creating the browser-local recovery copy");
+        updateOperation(operationTitle, "Creating the browser-local recovery copy");
         await recoveryCoordinator.startNewDocument(state.document, {
           policyMode: state.policy.mode,
           detachOnFailure: true,
@@ -1157,13 +1215,17 @@
         updateAll();
         elements.fileHeading.textContent = result.document.filename || "Untitled CSV";
         elements.fileHeading.focus?.();
-        const mode = state.policy.mode === "standard" ? "standard editing"
-          : state.policy.mode === "paged" ? "paged editing" : "read-only preview";
-        announce(`Opened ${result.document.filename} in ${mode} mode. ${result.document.dataRowCount.toLocaleString()} data rows and ${result.document.columnCount.toLocaleString()} columns.`);
+        if (creatingNew) {
+          announce(`Created ${result.document.filename}. Edit the column name, add rows, or change the filename.`);
+        } else {
+          const mode = state.policy.mode === "standard" ? "standard editing"
+            : state.policy.mode === "paged" ? "paged editing" : "read-only preview";
+          announce(`Opened ${result.document.filename} in ${mode} mode. ${result.document.dataRowCount.toLocaleString()} data rows and ${result.document.columnCount.toLocaleString()} columns.`);
+        }
       } catch (error) {
         const message = error instanceof Engine.CsvError
           ? error.message
-          : `Marin CSV could not open this file.${error instanceof Error && error.message ? ` ${error.message}` : ""}`;
+          : `Marin CSV could not ${creatingNew ? "create a new CSV" : "open this file"}.${error instanceof Error && error.message ? ` ${error.message}` : ""}`;
         failOpen(message);
       } finally {
         if (ownOperation) endOperation();
@@ -1189,6 +1251,14 @@
       if (!state.dependenciesReady || state.busy) return;
       elements.fileInput.value = "";
       elements.fileInput.click();
+    }
+
+    async function createNewCsv() {
+      if (!state.dependenciesReady || state.busy) return;
+      await loadBytes(new Uint8Array(), Engine.defaultNewFilename(), {
+        newDocument: true,
+        headerMode: true,
+      });
     }
 
     function withDiscardConfirmation(action) {
@@ -1259,12 +1329,16 @@
       metadataItem("Delimiter", meta.delimiterName);
       metadataItem("Encoding", `${meta.encoding}${meta.bom ? " with UTF-8 BOM" : " without BOM"}`);
       metadataItem("Line endings", `${meta.newlineName}${meta.trailingNewline ? ", final line ending retained" : ", no final line ending"}`);
-      metadataItem("File state", meta.modifiedFromOpen
-        ? (meta.hasUndownloadedChanges ? "Changed — not downloaded" : "Changed — downloaded")
-        : "Unchanged from opened file");
+      metadataItem("File state", meta.newDocument
+        ? (meta.hasUndownloadedChanges ? "New CSV — not downloaded" : "New CSV — downloaded")
+        : meta.modifiedFromOpen
+          ? (meta.hasUndownloadedChanges ? "Changed — not downloaded" : "Changed — downloaded")
+          : "Unchanged from opened file");
       metadataItem("Local recovery", recoveryStatusLabel());
       metadataItem("Parser", meta.preview
         ? `${state.usedWorker ? "Local Web Worker" : "Main-thread fallback"}; strict preservation profile; Papa Parse not needed for exact-copy preview`
+        : meta.newDocument
+          ? `New browser document; Papa Parse ${dependencyStatus.required.papaParse} validates before download`
         : `${state.usedWorker ? "Local Web Worker" : "Main-thread fallback"}; Papa Parse ${dependencyStatus.required.papaParse}`);
       metadataItem("Editor", `Tabulator ${dependencyStatus.required.tabulator}`);
       if (state.loadMetrics) metadataItem("Open time", `${Math.round(state.loadMetrics.totalMs).toLocaleString()} ms in this browser`);
@@ -1278,6 +1352,8 @@
       elements.statusFormat.textContent = `${meta.encoding}${meta.bom ? " + BOM" : ""} · ${meta.delimiterName} · ${meta.newlineName}`;
       elements.statusState.textContent = meta.preview
         ? "Read-only preview"
+        : meta.newDocument
+          ? (meta.hasUndownloadedChanges ? "New — not downloaded" : "New — downloaded")
         : meta.hasUndownloadedChanges
           ? "Changed — not downloaded"
           : meta.modifiedFromOpen ? "Changed — downloaded" : "Unchanged";
@@ -1310,9 +1386,12 @@
       const readOnly = Boolean(doc?.readOnly || state.policy.readOnly);
       const editDisabled = blocked || readOnly || state.busy;
       elements.openButton.disabled = state.busy || !state.dependenciesReady;
+      elements.newButton.disabled = state.busy || !state.dependenciesReady;
       elements.sampleButton.disabled = state.busy || !state.dependenciesReady;
       elements.openAnotherButton.disabled = state.busy;
       elements.downloadButton.disabled = blocked || state.busy;
+      elements.filenameButton.hidden = !doc?.newDocument;
+      elements.filenameButton.disabled = !doc?.newDocument || readOnly || state.busy;
       elements.downloadLabel.textContent = readOnly ? "Download exact copy" : "Download file";
       elements.undoButton.disabled = editDisabled || !doc?.canUndo;
       elements.redoButton.disabled = editDisabled || !doc?.canRedo;
@@ -1450,7 +1529,9 @@
         marinDownload({ content: bytes, name: filename, type: Engine.delimiterMimeType(state.document.delimiter) });
         state.document.markDownloaded();
         updateAll();
-        announce(`Downloaded ${filename}. The opened file was not overwritten.`);
+        announce(state.document.newDocument
+          ? `Downloaded ${filename}. Later downloads use a numbered filename.`
+          : `Downloaded ${filename}. The opened file was not overwritten.`);
       } finally {
         endOperation();
       }
@@ -1671,6 +1752,7 @@
     }
 
     elements.openButton.addEventListener("click", requestFileOpen);
+    elements.newButton.addEventListener("click", () => withDiscardConfirmation(createNewCsv));
     elements.sampleButton.addEventListener("click", openSample);
     marinUpload({
       input: elements.fileInput,
@@ -1869,6 +1951,25 @@
         endOperation();
       }
     });
+    elements.filenameButton.addEventListener("click", editFilename);
+    elements.filenameInput.addEventListener("input", clearFilenameError);
+    elements.filenameForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!state.document?.newDocument || state.document.readOnly || state.busy) return;
+      const result = filenameResult(elements.filenameInput.value);
+      if (result.error) {
+        elements.filenameError.textContent = result.error;
+        elements.filenameError.hidden = false;
+        elements.filenameInput.setAttribute("aria-invalid", "true");
+        elements.filenameInput.focus();
+        return;
+      }
+      const changed = state.document.setFilename(result.filename);
+      elements.filenameDialog.close("save");
+      updateAll();
+      elements.fileHeading.focus();
+      announce(changed ? `Filename changed to ${result.filename}.` : "Filename was not changed.");
+    });
 
     elements.firstPageButton.addEventListener("click", () => goToPage(1));
     elements.previousPageButton.addEventListener("click", () => goToPage((state.grid?.pageInfo?.().pageNumber || 1) - 1));
@@ -1946,6 +2047,7 @@
       clearOpenError();
     } else {
       elements.openButton.disabled = true;
+      elements.newButton.disabled = true;
       elements.sampleButton.disabled = true;
       showOpenError(`Marin CSV could not start because ${state.dependencyProblems.join("; ")}.`);
     }
