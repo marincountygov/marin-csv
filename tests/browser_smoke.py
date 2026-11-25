@@ -236,8 +236,9 @@ def run(screenshots: Path | None, in_memory: bool = False) -> None:
             require(page.locator("#main").get_attribute("tabindex") == "-1", "Main lacks focus support")
             require(page.locator("#app-status-message").get_attribute("aria-live") == "polite",
                     "Live status region is missing")
-            require(page.locator("#app-nav a").all_text_contents() == ["About", "Updates"],
-                    "Header navigation differs from the starter contract")
+            require(page.locator("#app-nav a").count() == 0,
+                    "The header holds only the app's own tabs; About and Updates are in the footer")
+            require(not page.locator("#menu-toggle").is_visible(), "An app with no tabs of its own has no Menu button")
             require(page.locator(".app-footer__nav a").all_text_contents()
                     == ["About", "Security", "Accessibility", "Tech", "Updates"], "Footer links differ")
             require(page.locator(".app-footer__app-name").evaluate("el => el.tagName") == "SPAN",
@@ -256,7 +257,7 @@ def run(screenshots: Path | None, in_memory: bool = False) -> None:
             if screenshots:
                 page.screenshot(path=str(screenshots / "desktop-light.png"), full_page=True)
 
-            page.locator("#app-nav a[href='#about']").click()
+            page.locator(".app-footer__nav a[href='#about']").click()
             route_is(page, "about")
             require(page.locator("#about h2").count() == 1, "About heading duplicated")
             page.locator(".app-footer__nav a[href='#security']").click()
@@ -268,7 +269,7 @@ def run(screenshots: Path | None, in_memory: bool = False) -> None:
             page.locator(".app-footer__nav a[href='#accessibility']").click()
             route_is(page, "accessibility")
             require(page.locator("#accessibility h2").count() == 1, "Accessibility heading duplicated")
-            page.locator("#app-nav a[href='#updates']").click()
+            page.locator(".app-footer__nav a[href='#updates']").click()
             route_is(page, "updates")
             page.locator("[data-updates-list]").get_by_text("Shell integration smoke test", exact=True).wait_for()
             repo = page.locator("marin-app-info").get_attribute("repo")
@@ -324,19 +325,11 @@ def run(screenshots: Path | None, in_memory: bool = False) -> None:
                 ready(mobile)
                 route_is(mobile, "start")
                 no_overflow(mobile)
-                require(mobile.locator("#app-nav").is_hidden(), "Mobile navigation starts open")
-                mobile.locator("#menu-toggle").click()
-                require(mobile.locator("#app-nav").is_visible(), "Mobile navigation did not open")
-                require(mobile.locator("#menu-toggle").get_attribute("aria-expanded") == "true",
-                        "Mobile menu has incorrect ARIA state")
-                mobile.keyboard.press("Escape")
-                require(mobile.locator("#app-nav").is_hidden(), "Escape did not close the mobile menu")
-                require(mobile.locator("#menu-toggle").evaluate("el => el === document.activeElement"),
-                        "Mobile menu focus was not restored")
-                mobile.locator("#menu-toggle").click()
-                mobile.locator("#app-nav a[href='#about']").click()
+                # An app with no tabs of its own has no Menu button and no empty navigation; the standard pages are in the footer.
+                require(mobile.locator("#menu-toggle").is_hidden() and mobile.locator("#app-nav").is_hidden(),
+                        "An app with no tabs of its own has no Menu button on a narrow screen")
+                mobile.locator(".app-footer__nav a[href='#about']").click()
                 route_is(mobile, "about")
-                require(mobile.locator("#app-nav").is_hidden(), "Navigation did not close the mobile menu")
                 no_overflow(mobile)
                 if screenshots:
                     mobile.screenshot(path=str(screenshots / f"mobile-{width}-{mode}.png"), full_page=True)
