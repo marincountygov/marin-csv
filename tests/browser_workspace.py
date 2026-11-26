@@ -287,6 +287,9 @@ def run(screenshots: Path | None = None, in_memory: bool = False) -> None:
             require(page.locator("#csv-more-menu").get_attribute("open") is None,
                     "Escape did not close the open toolbar menu")
             mode(page, "expanded")
+            # The grid restores focus to a cell a frame after a resize. Let that settle, then focus must still be on the summary: the
+            # grid must not take it back from a person who has moved to the toolbar (it did on a busy machine).
+            page.wait_for_timeout(1000)
             require(more_summary.evaluate("el => el === document.activeElement"),
                     "Toolbar menu Escape did not restore focus to its summary")
 
