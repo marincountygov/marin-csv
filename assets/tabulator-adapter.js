@@ -423,7 +423,9 @@
         if (!currentHolder) return;
         currentHolder.scrollLeft = scrollLeft;
         currentHolder.scrollTop = scrollTop;
-        if (restoreGridFocus) this.requestFocus(active.rowIndex, active.columnIndex);
+        // Focus goes back to the cell only if it is still in the grid or was lost by the redraw. A person who moved to the
+        // toolbar since the resize began keeps it there.
+        if (restoreGridFocus && this._focusIsInGridOrLost()) this.requestFocus(active.rowIndex, active.columnIndex);
       };
       const requestFrame = globalThis.requestAnimationFrame;
       if (typeof requestFrame === "function") requestFrame(restoreScroll);
@@ -831,6 +833,12 @@
       return row?.getCell?.(`c${columnIndex}`) || null;
     }
 
+    _focusIsInGridOrLost() {
+      const ownerDocument = this.container.ownerDocument || globalThis.document;
+      const focused = ownerDocument?.activeElement;
+      return !focused || focused === ownerDocument.body || focused === ownerDocument.documentElement || Boolean(this.container.contains?.(focused));
+    }
+
     _applyPendingFocus() {
       if (!this.ready || !this.pendingFocus) return;
       const requested = this.pendingFocus;
@@ -846,7 +854,9 @@
       };
       focus();
       const scrollResult = cell.getRow?.().scrollTo?.("center", false);
-      if (scrollResult && typeof scrollResult.then === "function") scrollResult.then(focus, focus);
+      // The second call, after the row has scrolled, must not take focus back from something the person moved to meanwhile.
+      const focusAgain = () => { if (this._focusIsInGridOrLost()) focus(); };
+      if (scrollResult && typeof scrollResult.then === "function") scrollResult.then(focusAgain, focusAgain);
     }
 
     requestFocus(rowIndex, columnIndex) {
